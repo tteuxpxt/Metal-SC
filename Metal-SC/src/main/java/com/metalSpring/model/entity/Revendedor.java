@@ -1,0 +1,82 @@
+package com.metalSpring.model.entity;
+
+import com.metalSpring.model.enums.UsuarioTipo;
+import jakarta.persistence.*;
+import java.util.ArrayList;
+import java.util.List;
+
+@Entity
+@DiscriminatorValue("REVENDEDOR")
+public class Revendedor extends Usuario {
+
+    @Column(unique = true, nullable = false)
+    private String cnpj;
+
+    @Column(nullable = false)
+    private String nomeLoja;
+
+    private Double avaliacaoMedia;
+
+    @OneToMany(mappedBy = "vendedor", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Peca> pecas = new ArrayList<>();
+
+    @OneToMany(mappedBy = "vendedor", cascade = CascadeType.ALL)
+    private List<Avaliacao> avaliacoes = new ArrayList<>();
+
+    public Revendedor() {
+        super();
+        this.avaliacaoMedia = 0.0;
+    }
+
+    public Revendedor(String nome, String email, String senhaHash, String telefone,
+                      String cnpj, String nomeLoja) {
+        super(nome, email, senhaHash, telefone, UsuarioTipo.REVENDEDOR);
+        this.cnpj = cnpj;
+        this.nomeLoja = nomeLoja;
+        this.avaliacaoMedia = 0.0;
+    }
+
+    public void adicionarPeca(Peca peca) {
+        pecas.add(peca);
+        peca.setVendedor(this);
+    }
+
+    public void removerPeca(String idPeca) {
+        pecas.removeIf(peca -> peca.getId().equals(idPeca));
+    }
+
+    public void atualizarEstoque(String idPeca, int quantidade) {
+        Peca peca = pecas.stream()
+                .filter(p -> p.getId().equals(idPeca))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Peça não encontrada"));
+        peca.alterarEstoque(quantidade);
+    }
+
+    public void calcularAvaliacaoMedia() {
+        if (avaliacoes.isEmpty()) {
+            this.avaliacaoMedia = 0.0;
+            return;
+        }
+        double soma = avaliacoes.stream()
+                .mapToInt(Avaliacao::getNota)
+                .sum();
+        this.avaliacaoMedia = soma / avaliacoes.size();
+    }
+
+    // Getters e Setters
+    public String getCnpj() { return cnpj; }
+    public void setCnpj(String cnpj) { this.cnpj = cnpj; }
+
+    public String getNomeLoja() { return nomeLoja; }
+    public void setNomeLoja(String nomeLoja) { this.nomeLoja = nomeLoja; }
+
+    public Double getAvaliacaoMedia() { return avaliacaoMedia; }
+    public void setAvaliacaoMedia(Double avaliacaoMedia) { this.avaliacaoMedia = avaliacaoMedia; }
+
+    public List<Peca> getPecas() { return pecas; }
+    public void setPecas(List<Peca> pecas) { this.pecas = pecas; }
+
+    public List<Avaliacao> getAvaliacoes() { return avaliacoes; }
+    public void setAvaliacoes(List<Avaliacao> avaliacoes) { this.avaliacoes = avaliacoes; }
+}

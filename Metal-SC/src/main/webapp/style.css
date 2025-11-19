@@ -1,0 +1,42 @@
+.salvar{
+    width:fit-content;
+    background-color: green;
+    color: #ffffff;
+    padding:5px 10px;
+}
+
+.atualizar{
+    width:fit-content;
+    background-color: blue;
+    color: #ffffff;
+    padding:5px 10px;
+}
+
+.deletar{
+    width:fit-content;
+    background-color: red;
+    color: #ffffff;
+    padding:5px 10px;
+}
+
+.consultar{
+    width:fit-content;
+    background-color: #666666;
+    color: #ffffff;
+    padding:5px 10px;
+}
+
+.limparCampos{
+    width:fit-content;
+    background-color: #000000;
+    color: #ffffff;
+    padding:5px 10px;
+}
+
+div{
+    margin:10px 0;
+}
+
+label{
+    min-width: 130px;
+}
