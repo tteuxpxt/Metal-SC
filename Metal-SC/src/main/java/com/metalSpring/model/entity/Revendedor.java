@@ -53,15 +53,16 @@ public class Revendedor extends Usuario {
         peca.alterarEstoque(quantidade);
     }
 
-    public void calcularAvaliacaoMedia() {
+    public double calcularAvaliacaoMedia() {
         if (avaliacoes.isEmpty()) {
             this.avaliacaoMedia = 0.0;
-            return;
+            return 0;
         }
         double soma = avaliacoes.stream()
                 .mapToInt(Avaliacao::getNota)
                 .sum();
         this.avaliacaoMedia = soma / avaliacoes.size();
+        return soma;
     }
 
     // Getters e Setters

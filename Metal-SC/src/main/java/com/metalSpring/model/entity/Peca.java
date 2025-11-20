@@ -142,4 +142,6 @@ public class Peca {
     public int hashCode() {
         return Objects.hash(id);
     }
+
+
 }

@@ -67,10 +67,11 @@ public class Pedido {
         calcularTotal();
     }
 
-    public void calcularTotal() {
+    public double calcularTotal() {
         this.valorTotal = itens.stream()
                 .mapToDouble(ItemPedido::getSubtotal)
                 .sum();
+        return 0;
     }
 
     public void atualizarStatus(PedidoStatus novoStatus) {

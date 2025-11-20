@@ -24,6 +24,7 @@ public class ItemPedido {
     @ManyToOne
     @JoinColumn(name = "pedido_id")
     private Pedido pedido;
+    private double subtotal;
 
     public ItemPedido() {}
 
@@ -65,4 +66,9 @@ public class ItemPedido {
     public int hashCode() {
         return Objects.hash(id);
     }
+
+    public void calcularSubtotal() {
+        this.subtotal = this.quantidade * this.precoUnitario;
+    }
+
 }
