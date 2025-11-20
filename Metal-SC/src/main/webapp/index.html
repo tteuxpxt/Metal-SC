@@ -1,44 +1,336 @@
 <!DOCTYPE html>
-<html lang="pt-br">
+<html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width">
-    <title>Title</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Metal-SC - Marketplace de Peças Automotivas</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <h1>Cadastro de Produtos</h1>
+    <!-- Header -->
+    <header>
+        <nav class="container">
+            <div class="logo">⚙️ Metal-SC</div>
+            <div class="nav-links">
+                <a href="#" onclick="showPage('home')">Início</a>
+                <a href="#" onclick="showPage('produtos')">Produtos</a>
+                <button id="cartBtn" onclick="showPage('carrinho')">🛒 Carrinho (<span id="cartCount">0</span>)</button>
+                <button id="loginBtn" onclick="showPage('login')" class="btn btn-primary">Entrar</button>
+                <button id="userMenu" style="display:none;" onclick="showPage('dashboard')" class="btn btn-secondary">Minha Conta</button>
+                <button id="adminBtn" style="display:none;" onclick="showPage('admin')" class="btn btn-secondary">Painel Admin</button>
+                <button id="logoutBtn" style="display:none;" onclick="logout()" class="btn btn-danger">Sair</button>
+                <a class="btn btn-secondary" href="/h2-console" target="_blank" style="margin-left:12px;">H2 Console</a>
+                <a class="btn btn-secondary" href="/mnt/data/DiagramaMetal.drawio.pdf" target="_blank" style="margin-left:6px;">Diagrama</a>
+            </div>
+        </nav>
+    </header>
 
-    <div>
-        <label for="id">ID:</label>
-        <input type="text" id="id">
-    </div>
-    <div>
-        <label for="nome">Nome:</label>
-        <input type="text" id="nome">
-    </div>
-    <div>
-        <label for="preco">Preço:</label>
-        <input type="text" id="preco">
-    </div>
-    <div>
-        <label for="quantidade">Quantidade:</label>
-        <input type="text" id="quantidade">
-    </div>
-    <div>
-        <label for="status">Status:</label>
-        <input type="text" id="status">
+    <div class="container">
+        <!-- Home Page -->
+        <div id="home" class="page active">
+            <h1 style="margin: 3rem 0 2rem;">Bem-vindo ao Metal-SC</h1>
+            <p style="font-size: 1.2rem; color: var(--secondary); margin-bottom: 3rem;">
+                O maior marketplace de peças automotivas usadas do Brasil
+            </p>
+            <div class="dashboard-grid">
+                <div class="stat-card">
+                    <h3>🔧</h3>
+                    <p>Milhares de peças disponíveis</p>
+                </div>
+                <div class="stat-card">
+                    <h3>✅</h3>
+                    <p>Vendedores verificados</p>
+                </div>
+                <div class="stat-card">
+                    <h3>🚚</h3>
+                    <p>Entrega em todo Brasil</p>
+                </div>
+            </div>
+            <button onclick="showPage('produtos')" class="btn btn-primary" style="margin-top: 2rem;">
+                Ver Produtos
+            </button>
+        </div>
+
+        <!-- Produtos Page -->
+        <div id="produtos" class="page">
+            <h1 style="margin: 2rem 0 1rem;">Catálogo de Peças</h1>
+            <div class="search-bar">
+                <input type="text" id="searchInput" placeholder="Buscar peças..." onkeyup="searchProducts()">
+                <select id="categoryFilter" onchange="searchProducts()">
+                    <option value="">Todas as categorias</option>
+                    <option value="MOTOR">Motor</option>
+                    <option value="SUSPENSAO">Suspensão</option>
+                    <option value="FREIOS">Freios</option>
+                    <option value="ELETRICA">Elétrica</option>
+                    <option value="CARROCERIA">Carroceria</option>
+                </select>
+                <select id="brandFilter" onchange="searchProducts()">
+                    <option value="">Todas as marcas</option>
+                </select>
+            </div>
+            <div id="productsGrid" class="products-grid"></div>
+        </div>
+
+        <!-- Carrinho Page -->
+        <div id="carrinho" class="page">
+            <h1 style="margin: 2rem 0 1rem;">Meu Carrinho</h1>
+            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 2rem;">
+                <div class="cart-items" id="cartItems"></div>
+                <div class="cart-summary">
+                    <h3 style="margin-bottom: 1rem;">Resumo do Pedido</h3>
+                    <div style="display: flex; justify-content: space-between; margin: 1rem 0;">
+                        <span>Subtotal:</span>
+                        <strong id="cartSubtotal">R$ 0,00</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin: 1rem 0; font-size: 1.2rem;">
+                        <strong>Total:</strong>
+                        <strong id="cartTotal" style="color: var(--primary);">R$ 0,00</strong>
+                    </div>
+                    <button onclick="checkout()" class="btn btn-success" style="width: 100%; margin-top: 1rem;">
+                        Finalizar Compra
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Login Page -->
+        <div id="login" class="page">
+            <div class="auth-container">
+                <h2>Entrar</h2>
+                <div id="loginAlert"></div>
+                <form onsubmit="login(event)">
+                    <div class="form-group">
+                        <label>Email</label>
+                        <input type="email" id="loginEmail" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Senha</label>
+                        <input type="password" id="loginPassword" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary" style="width: 100%;">Entrar</button>
+                </form>
+                <p style="margin-top: 1.5rem; text-align: center;">
+                    Não tem conta? <a href="#" onclick="showPage('register')" style="color: var(--primary);">Cadastre-se</a>
+                </p>
+            </div>
+        </div>
+
+        <!-- Register Page -->
+        <div id="register" class="page">
+            <div class="auth-container">
+                <h2>Cadastrar</h2>
+                <div id="registerAlert"></div>
+                <form onsubmit="register(event)">
+                    <div class="form-group">
+                        <label>Tipo de Usuário</label>
+                        <select id="userType" onchange="toggleRevendedorFields()">
+                            <option value="CLIENTE">Cliente</option>
+                            <option value="REVENDEDOR">Revendedor</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Nome <span id="nomeLabel"></span></label>
+                        <input type="text" id="registerName" required>
+                    </div>
+                    <div id="cnpjField" class="form-group" style="display:none;">
+                        <label>CNPJ</label>
+                        <input type="text" id="registerCnpj">
+                    </div>
+                    <div id="lojaField" class="form-group" style="display:none;">
+                        <label>Nome da Loja</label>
+                        <input type="text" id="registerLoja">
+                    </div>
+                    <div class="form-group">
+                        <label>Email</label>
+                        <input type="email" id="registerEmail" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Telefone</label>
+                        <input type="tel" id="registerPhone" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Senha</label>
+                        <input type="password" id="registerPassword" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary" style="width: 100%;">Cadastrar</button>
+                </form>
+                <p style="margin-top: 1.5rem; text-align: center;">
+                    Já tem conta? <a href="#" onclick="showPage('login')" style="color: var(--primary);">Entre aqui</a>
+                </p>
+            </div>
+        </div>
+
+        <!-- Dashboard Page -->
+        <div id="dashboard" class="page">
+            <h1 style="margin: 2rem 0 1rem;">Minha Conta</h1>
+            <div id="clientDashboard" style="display:none;">
+                <h2>Meus Pedidos</h2>
+                <div class="table-container" style="margin-top: 1rem;">
+                    <table id="ordersTable">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Data</th>
+                                <th>Total</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+            <div id="revendedorDashboard" style="display:none;">
+                <div class="dashboard-grid" style="margin-bottom: 2rem;">
+                    <div class="stat-card">
+                        <h3 id="totalPecas">0</h3>
+                        <p>Peças Cadastradas</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3 id="totalVendas">0</h3>
+                        <p>Vendas Realizadas</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3 id="avaliacaoMedia">0.0</h3>
+                        <p>Avaliação Média</p>
+                    </div>
+                </div>
+                <button onclick="showAddPecaModal()" class="btn btn-primary">+ Adicionar Peça</button>
+                <h2 style="margin: 2rem 0 1rem;">Minhas Peças</h2>
+                <div class="table-container">
+                    <table id="pecasTable">
+                        <thead>
+                            <tr>
+                                <th>Nome</th>
+                                <th>Categoria</th>
+                                <th>Preço</th>
+                                <th>Estoque</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
     </div>
 
-    <button onclick="salvar()" class="salvar">Salvar</button>
-    <button onclick="atualizar()" class="atualizar">Atualizar</button>
-    <button onclick="deletar()" class="deletar">Deletar</button>
-    <button onclick="consultar()" class="consultar">Consultar</button>
-    <button onclick="limparCampos()" class="limparCampos">Limpar Campos</button>
+    <!-- Add Peca Modal -->
+    <div id="addPecaModal" class="modal">
+        <div class="modal-content">
+            <h2>Adicionar Peça</h2>
+            <form onsubmit="addPeca(event)">
+                <div class="form-group">
+                    <label>Nome</label>
+                    <input type="text" id="pecaNome" required>
+                </div>
+                <div class="form-group">
+                    <label>Descrição</label>
+                    <textarea id="pecaDescricao" rows="3"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Categoria</label>
+                    <select id="pecaCategoria" required>
+                        <option value="MOTOR">Motor</option>
+                        <option value="SUSPENSAO">Suspensão</option>
+                        <option value="FREIOS">Freios</option>
+                        <option value="ELETRICA">Elétrica</option>
+                        <option value="CARROCERIA">Carroceria</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Preço (R$)</label>
+                    <input type="number" id="pecaPreço" step="0.01" required>
+                </div>
+                <div class="form-group">
+                    <label>Marca do Veículo</label>
+                    <input type="text" id="pecaMarca" required>
+                </div>
+                <div class="form-group">
+                    <label>Modelo do Veículo</label>
+                    <input type="text" id="pecaModelo" required>
+                </div>
+                <div class="form-group">
+                    <label>Ano</label>
+                    <input type="number" id="pecaAno" required>
+                </div>
+                <div class="form-group">
+                    <label>Estoque</label>
+                    <input type="number" id="pecaEstoque" required>
+                </div>
+                <div class="form-group">
+                    <label>Estado</label>
+                    <select id="pecaEstado" required>
+                        <option value="NOVO">Novo</option>
+                        <option value="USADO_BOM">Usado - Bom</option>
+                        <option value="USADO_REGULAR">Usado - Regular</option>
+                    </select>
+                </div>
+                <div style="display: flex; gap: 1rem; margin-top: 1.5rem;">
+                    <button type="button" onclick="closeModal('addPecaModal')" class="btn btn-secondary">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Salvar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <!-- Admin Page (simples) -->
+    <div id="admin" class="page">
+        <h1 style="margin: 2rem 0 1rem;">Painel Administrativo</h1>
 
-    <h2>Lista de Produtos</h2>
-    <ul id="lista-produtos"></ul>
-    <p id="total-produtos" onload="getProdutoFromForm()"></p>
+        <div style="display:flex; gap:16px; flex-wrap:wrap; margin-bottom:16px;">
+            <div class="stat-card" style="flex:1; min-width:200px;">
+                <h3 id="adminTotalUsers">0</h3>
+                <p>Usuários</p>
+            </div>
+            <div class="stat-card" style="flex:1; min-width:200px;">
+                <h3 id="adminTotalPecas">0</h3>
+                <p>Peças</p>
+            </div>
+            <div class="stat-card" style="flex:1; min-width:200px;">
+                <h3 id="adminTotalPedidos">0</h3>
+                <p>Pedidos</p>
+            </div>
+        </div>
+
+        <h2>Usuários</h2>
+        <div class="table-container" style="margin-bottom:1.5rem;">
+            <table id="adminUsersTable">
+                <thead>
+                <tr><th>ID</th><th>Nome</th><th>Email</th><th>Tipo</th><th>Ações</th></tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <h2>Peças</h2>
+        <div class="table-container" style="margin-bottom:1.5rem;">
+            <table id="adminPecasTable">
+                <thead>
+                <tr><th>ID</th><th>Nome</th><th>Categoria</th><th>Preço</th><th>Ações</th></tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <h2>Revendedores pendentes</h2>
+        <div class="table-container" style="margin-bottom:1.5rem;">
+            <table id="adminRevendedoresTable">
+                <thead>
+                <tr><th>ID</th><th>Nome Loja</th><th>CNPJ</th><th>Email</th><th>Ações</th></tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <h2>Pedidos</h2>
+        <div class="table-container" style="margin-bottom:1.5rem;">
+            <table id="adminPedidosTable">
+                <thead>
+                <tr><th>ID</th><th>Cliente</th><th>Valor</th><th>Status</th></tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
 
     <script src="script.js"></script>
 </body>
