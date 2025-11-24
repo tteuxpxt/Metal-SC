@@ -1,4 +1,4 @@
-package com.metalSpring.Security.config;
+package com.metalSpring.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
