@@ -1,10 +1,10 @@
-package com.metalSpring.config;
+package com.metalSpring.Security.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
@@ -13,129 +13,73 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.Arrays;
+import java.util.List;
 
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
 
-    /**
-     * Configura o encoder de senha usando BCrypt
-     * BCrypt é um algoritmo seguro para hash de senhas
-     */
-    @Bean
-    public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
-    }
-
-    /**
-     * Configura a cadeia de filtros de segurança
-     * Esta configuração é para DESENVOLVIMENTO - ajuste para produção!
-     */
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-                // Desabilita CSRF (necessário para APIs REST)
-                .csrf(csrf -> csrf.disable())
-
-                // Configura CORS
+                // 1. CONFIGURAÇÃO DE CORS (Permite o React acessar o Java)
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
 
-                // Configura política de sessão (stateless para APIs REST)
-                .sessionManagement(session ->
-                        session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                // 2. DESABILITAR CSRF (Necessário para APIs REST e H2 Console)
+                .csrf(csrf -> csrf
+                        .ignoringRequestMatchers("/h2-console/**") // Ignora CSRF no H2
+                        .disable() // Desabilita geral para API (React gerencia isso)
                 )
 
-                // Configura autorização de requisições
+                // 3. LIBERAR FRAMES (Crucial para o H2 Console aparecer)
+                .headers(headers -> headers.frameOptions(frame -> frame.sameOrigin()))
+
+                // 4. REGRAS DE ACESSO (O "Porteiro")
                 .authorizeHttpRequests(auth -> auth
-                        // Endpoints públicos - não requerem autenticação
-                        .requestMatchers(
-                                "/api/auth/**",           // Login, registro, etc
-                                "/api/pecas/**",          // Listagem de peças (público)
-                                "/api/revendedores/**",   // Listagem de revendedores (público)
-                                "/api/search/**",         // Busca de peças
-                                "/h2-console/**",         // Console H2 (apenas dev)
-                                "/actuator/**",           // Endpoints do Actuator (apenas dev)
-                                "/swagger-ui/**",         // Swagger UI
-                                "/v3/api-docs/**"         // OpenAPI docs
-                        ).permitAll()
+                        // -- Área Pública --
+                        .requestMatchers("/h2-console/**").permitAll()      // Banco de Dados
+                        .requestMatchers(HttpMethod.POST, "/api/usuarios").permitAll() // Criar conta
+                        .requestMatchers(HttpMethod.POST, "/api/login").permitAll()    // Logar
+                        .requestMatchers(HttpMethod.GET, "/api/pecas/**").permitAll()  // Ver peças (vitrine)
 
-                        // Endpoints de administrador
-                        .requestMatchers("/api/admin/**").hasRole("ADMINISTRADOR")
-
-                        // Endpoints de revendedor
-                        .requestMatchers(
-                                "/api/pedidos/vendedor/**",
-                                "/api/pecas/cadastrar",
-                                "/api/pecas/atualizar/**"
-                        ).hasRole("REVENDEDOR")
-
-                        // Qualquer outra requisição requer autenticação
+                        // -- Área Restrita (Todo o resto precisa de login) --
                         .anyRequest().authenticated()
                 )
 
-                // Permite frames (necessário para H2 Console)
-                .headers(headers -> headers
-                        .frameOptions(frame -> frame.sameOrigin())
-                );
+                // 5. TIPO DE LOGIN (Básico para testes, pode evoluir para JWT depois)
+                .httpBasic(basic -> {});
 
         return http.build();
     }
 
-    /**
-     * Configura CORS para permitir requisições de diferentes origens
-     * Ajuste os valores conforme necessário para produção
-     */
+    // Apague ou comente o @Bean do BCryptPasswordEncoder que você tem e coloque este:
+
+    @SuppressWarnings("deprecation")
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        // Isso força o Spring a usar senhas em texto puro (Só para desenvolvimento!)
+        return org.springframework.security.crypto.password.NoOpPasswordEncoder.getInstance();
+    }
+
+    // Configuração Detalhada do CORS (React <-> Java)
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 
-        // Origens permitidas (ajuste para produção!)
-        configuration.setAllowedOrigins(Arrays.asList(
-                "http://localhost:3000",      // React dev server
-                "http://localhost:4200",      // Angular dev server
-                "http://localhost:8080"       // Mesma origem
-        ));
+        // Permite requisições do seu Frontend (ajuste a porta se usar Vite/Next)
+        configuration.setAllowedOrigins(List.of("http://localhost:3000", "http://localhost:5173"));
 
-        // Métodos HTTP permitidos
-        configuration.setAllowedMethods(Arrays.asList(
-                "GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"
-        ));
+        // Permite os métodos HTTP comuns
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
 
-        // Headers permitidos
-        configuration.setAllowedHeaders(Arrays.asList(
-                "Authorization",
-                "Content-Type",
-                "Accept",
-                "X-Requested-With"
-        ));
+        // Permite cabeçalhos (Auth, Content-Type, etc)
+        configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type"));
 
-        // Permite envio de credenciais (cookies, headers de autenticação)
+        // Permite enviar cookies/credenciais se necessário
         configuration.setAllowCredentials(true);
-
-        // Tempo de cache da configuração CORS (em segundos)
-        configuration.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
-
         return source;
     }
-
-    /**
-     * CONFIGURAÇÃO ALTERNATIVA PARA DESENVOLVIMENTO
-     * Descomente o código abaixo se quiser DESABILITAR toda segurança
-     * temporariamente durante o desenvolvimento
-     */
-    /*
-    @Bean
-    public SecurityFilterChain devSecurityFilterChain(HttpSecurity http) throws Exception {
-        http
-            .csrf(csrf -> csrf.disable())
-            .authorizeHttpRequests(auth -> auth
-                .anyRequest().permitAll()  // PERMITE TUDO - APENAS DEV!
-            );
-
-        return http.build();
-    }
-    */
 }

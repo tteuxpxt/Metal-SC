@@ -10,6 +10,12 @@ import java.util.Objects;
 @Table(name = "pecas")
 public class Peca {
 
+    private boolean disponivel = true;
+
+    public boolean isDisponivel() { return disponivel; }
+
+    public void setDisponivel(boolean disponivel) { this.disponivel = disponivel; }
+
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private String id;

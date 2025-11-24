@@ -12,6 +12,12 @@ import java.util.Objects;
 @DiscriminatorColumn(name = "tipo_usuario", discriminatorType = DiscriminatorType.STRING)
 public class Usuario {
 
+    private boolean ativo = true;
+
+    public boolean isAtivo() { return ativo; }
+
+    public void setAtivo(boolean ativo) { this.ativo = ativo; }
+
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private String id;

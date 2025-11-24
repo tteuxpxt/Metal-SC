@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/Metal-SC.iml" filepath="$PROJECT_DIR$/.idea/Metal-SC.iml" />
+      <module fileurl="file://$PROJECT_DIR$/Metal-SC/Metal-SC.iml" filepath="$PROJECT_DIR$/Metal-SC/Metal-SC.iml" />
     </modules>
   </component>
 </project>
