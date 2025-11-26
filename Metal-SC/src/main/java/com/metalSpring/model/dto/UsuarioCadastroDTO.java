@@ -15,28 +15,68 @@ public class UsuarioCadastroDTO {
     // Construtores
     public UsuarioCadastroDTO() {}
 
-    // Getters e Setters
-    public String getNome() { return nome; }
-    public void setNome(String nome) { this.nome = nome; }
+    // ✅ GETTERS E SETTERS COMPLETOS
+    public String getNome() {
+        return nome;
+    }
 
-    public String getEmail() { return email; }
-    public void setEmail(String email) { this.email = email; }
+    public void setNome(String nome) {
+        this.nome = nome;
+    }
 
-    public String getSenha() { return senha; }
-    public void setSenha(String senha) { this.senha = senha; }
+    public String getEmail() {
+        return email;
+    }
 
-    public String getTelefone() { return telefone; }
-    public void setTelefone(String telefone) { this.telefone = telefone; }
+    public void setEmail(String email) {
+        this.email = email;
+    }
 
-    public UsuarioTipo getTipo() { return tipo; }
-    public void setTipo(UsuarioTipo tipo) { this.tipo = tipo; }
+    public String getSenha() {
+        return senha;
+    }
 
-    public EnderecoDTO getEndereco() { return endereco; }
-    public void setEndereco(EnderecoDTO endereco) { this.endereco = endereco; }
+    public void setSenha(String senha) {
+        this.senha = senha;
+    }
 
-    public String getCnpj() {return cnpj;}
-    public void setCnpj(String cnpj) {this.cnpj = cnpj;}
+    public String getTelefone() {
+        return telefone;
+    }
 
-    public String getNomeLoja() {return nomeLoja;}
-    public void setNomeLoja(String nomeLoja) {this.nomeLoja = nomeLoja;}
+    public void setTelefone(String telefone) {
+        this.telefone = telefone;
+    }
+
+    public UsuarioTipo getTipo() {
+        return tipo;
+    }
+
+    public void setTipo(UsuarioTipo tipo) {
+        this.tipo = tipo;
+    }
+
+    public EnderecoDTO getEndereco() {
+        return endereco;
+    }
+
+    public void setEndereco(EnderecoDTO endereco) {
+        this.endereco = endereco;
+    }
+
+    public String getCnpj() {
+        return cnpj;
+    }
+
+    public void setCnpj(String cnpj) {
+        this.cnpj = cnpj;
+    }
+
+    public String getNomeLoja() {
+        return nomeLoja;
+    }
+
+    public void setNomeLoja(String nomeLoja) {
+        this.nomeLoja = nomeLoja;
+    }
 }

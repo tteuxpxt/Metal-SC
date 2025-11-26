@@ -656,55 +656,61 @@ const RegisterPage = () => {
     }));
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
+ const handleSubmit = async (e) => {
+   e.preventDefault();
+   setError('');
+   setLoading(true);
 
-    try {
-      // Define o endpoint baseado no tipo de usuário
-      const endpoint = formData.tipo === 'CLIENTE'
-        ? `${API_URL}/clientes`
-        : `${API_URL}/revendedores`;
+   try {
+     const endpoint = formData.tipo === 'CLIENTE'
+       ? `${API_URL}/clientes`
+       : `${API_URL}/revendedores`;
 
-      // Prepara os dados conforme o tipo
-      const payload = formData.tipo === 'CLIENTE'
-        ? {
-            nome: formData.nome,
-            email: formData.email,
-            senha: formData.senha,
-            telefone: formData.telefone,
-            endereco: formData.endereco
-          }
-        : {
-            nome: formData.nome,
-            email: formData.email,
-            senha: formData.senha,
-            telefone: formData.telefone,
-            cnpj: formData.cnpj,
-            nomeLoja: formData.nomeLoja
-          };
+     // ✅ Payload com TIPO incluído
+     const payload = formData.tipo === 'CLIENTE'
+       ? {
+           nome: formData.nome,
+           email: formData.email,
+           senha: formData.senha,
+           telefone: formData.telefone,
+           tipo: 'CLIENTE',  // ✅ IMPORTANTE
+           endereco: formData.endereco
+         }
+       : {
+           nome: formData.nome,
+           email: formData.email,
+           senha: formData.senha,
+           telefone: formData.telefone,
+           tipo: 'REVENDEDOR',  // ✅ IMPORTANTE
+           cnpj: formData.cnpj,
+           nomeLoja: formData.nomeLoja
+         };
 
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
+     console.log('📤 Enviando para:', endpoint);
+     console.log('📦 Payload:', JSON.stringify(payload, null, 2));
 
-      if (res.ok) {
-        setSuccess(true);
-        setTimeout(() => setCurrentPage('login'), 2000);
-      } else {
-        const errorData = await res.json();
-        setError(errorData.error || 'Erro ao cadastrar. Tente novamente.');
-      }
-    } catch (err) {
-      console.error('Erro ao cadastrar:', err);
-      setError('Erro de conexão. Tente novamente.');
-    } finally {
-      setLoading(false);
-    }
-  };
+     const res = await fetch(endpoint, {
+       method: 'POST',
+       headers: { 'Content-Type': 'application/json' },
+       body: JSON.stringify(payload)
+     });
+
+     const responseData = await res.json();
+     console.log('📥 Resposta:', responseData);
+
+     if (res.ok) {
+       setSuccess(true);
+       setTimeout(() => setCurrentPage('login'), 2000);
+     } else {
+       setError(responseData.error || responseData.message || 'Erro ao cadastrar');
+     }
+   } catch (err) {
+     console.error('❌ Erro:', err);
+     setError('Erro de conexão. Verifique se o backend está rodando.');
+   } finally {
+     setLoading(false);
+   }
+ };
 
   return (
     <div className="auth-page">

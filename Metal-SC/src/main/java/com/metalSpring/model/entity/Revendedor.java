@@ -9,10 +9,11 @@ import java.util.List;
 @DiscriminatorValue("REVENDEDOR")
 public class Revendedor extends Usuario {
 
-    @Column(unique = true, nullable = false)
+    // ✅ CORREÇÃO: Remover nullable=false para permitir NULL quando for Cliente
+    @Column(unique = true)  // Removido: nullable = false
     private String cnpj;
 
-    @Column(nullable = false)
+    @Column  // Removido: nullable = false
     private String nomeLoja;
 
     private Double avaliacaoMedia;
