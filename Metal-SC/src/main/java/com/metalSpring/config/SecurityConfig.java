@@ -2,10 +2,8 @@ package com.metalSpring.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
@@ -26,34 +24,21 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
 
                 // 2. DESABILITAR CSRF (Necessário para APIs REST e H2 Console)
-                .csrf(csrf -> csrf
-                        .ignoringRequestMatchers("/h2-console/**") // Ignora CSRF no H2
-                        .disable() // Desabilita geral para API (React gerencia isso)
-                )
+                .csrf(csrf -> csrf.disable())
 
                 // 3. LIBERAR FRAMES (Crucial para o H2 Console aparecer)
-                .headers(headers -> headers.frameOptions(frame -> frame.sameOrigin()))
+                .headers(headers -> headers.frameOptions(frame -> frame.disable()))
 
-                // 4. REGRAS DE ACESSO (O "Porteiro")
+                // 4. PERMITIR TUDO - SEM RESTRIÇÕES (APENAS PARA DESENVOLVIMENTO!)
                 .authorizeHttpRequests(auth -> auth
-                        // -- Área Pública --
-                        .requestMatchers("/h2-console/**").permitAll()      // Banco de Dados
-                        .requestMatchers(HttpMethod.POST, "/api/usuarios").permitAll() // Criar conta
-                        .requestMatchers(HttpMethod.POST, "/api/login").permitAll()    // Logar
-                        .requestMatchers(HttpMethod.GET, "/api/pecas/**").permitAll()  // Ver peças (vitrine)
-
-                        // -- Área Restrita (Todo o resto precisa de login) --
-                        .anyRequest().authenticated()
-                )
-
-                // 5. TIPO DE LOGIN (Básico para testes, pode evoluir para JWT depois)
-                .httpBasic(basic -> {});
+                        .anyRequest().permitAll()  // PERMITE TUDO SEM AUTENTICAÇÃO
+                );
 
         return http.build();
     }
 
-    // Apague ou comente o @Bean do BCryptPasswordEncoder que você tem e coloque este:
-
+    // ⚠️ ATENÇÃO: NoOpPasswordEncoder está DEPRECATED e é INSEGURO!
+    // Use apenas para desenvolvimento/testes. Em produção use BCrypt!
     @SuppressWarnings("deprecation")
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -66,16 +51,16 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 
-        // Permite requisições do seu Frontend (ajuste a porta se usar Vite/Next)
-        configuration.setAllowedOrigins(List.of("http://localhost:3000", "http://localhost:5173"));
+        // Permite requisições de QUALQUER ORIGEM (APENAS DESENVOLVIMENTO!)
+        configuration.setAllowedOriginPatterns(List.of("*"));
 
         // Permite os métodos HTTP comuns
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
 
-        // Permite cabeçalhos (Auth, Content-Type, etc)
-        configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type"));
+        // Permite todos os cabeçalhos
+        configuration.setAllowedHeaders(List.of("*"));
 
-        // Permite enviar cookies/credenciais se necessário
+        // Permite enviar cookies/credenciais
         configuration.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
