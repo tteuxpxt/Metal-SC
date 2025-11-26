@@ -622,11 +622,39 @@ const RegisterPage = () => {
     telefone: '',
     tipo: 'CLIENTE',
     cnpj: '',
-    nomeLoja: ''
+    nomeLoja: '',
+    endereco: {
+      rua: '',
+      numero: '',
+      complemento: '',
+      bairro: '',
+      cidade: '',
+      estado: '',
+      cep: ''
+    }
   });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleEnderecoChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      endereco: {
+        ...prev.endereco,
+        [name]: value
+      }
+    }));
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -634,20 +662,45 @@ const RegisterPage = () => {
     setLoading(true);
 
     try {
-      const res = await fetch(`${API_URL}/usuarios`, {
+      // Define o endpoint baseado no tipo de usuário
+      const endpoint = formData.tipo === 'CLIENTE'
+        ? `${API_URL}/clientes`
+        : `${API_URL}/revendedores`;
+
+      // Prepara os dados conforme o tipo
+      const payload = formData.tipo === 'CLIENTE'
+        ? {
+            nome: formData.nome,
+            email: formData.email,
+            senha: formData.senha,
+            telefone: formData.telefone,
+            endereco: formData.endereco
+          }
+        : {
+            nome: formData.nome,
+            email: formData.email,
+            senha: formData.senha,
+            telefone: formData.telefone,
+            cnpj: formData.cnpj,
+            nomeLoja: formData.nomeLoja
+          };
+
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(payload)
       });
 
       if (res.ok) {
         setSuccess(true);
         setTimeout(() => setCurrentPage('login'), 2000);
       } else {
-        setError('Erro ao cadastrar. Tente novamente.');
+        const errorData = await res.json();
+        setError(errorData.error || 'Erro ao cadastrar. Tente novamente.');
       }
     } catch (err) {
-      setError('Erro ao cadastrar');
+      console.error('Erro ao cadastrar:', err);
+      setError('Erro de conexão. Tente novamente.');
     } finally {
       setLoading(false);
     }
@@ -656,85 +709,219 @@ const RegisterPage = () => {
   return (
     <div className="auth-page">
       <div className="container">
-        <div className="auth-card">
+        <div className="auth-card" style={{ maxWidth: '600px' }}>
           <h2>Cadastrar</h2>
-          {error && <div className="error-message">{error}</div>}
-          {success && <div className="success-message">Cadastro realizado! Redirecionando...</div>}
+          {error && <div className="error-message" style={{
+            backgroundColor: '#fee',
+            padding: '1rem',
+            borderRadius: '4px',
+            marginBottom: '1rem',
+            color: '#c00'
+          }}>{error}</div>}
+          {success && <div className="success-message" style={{
+            backgroundColor: '#efe',
+            padding: '1rem',
+            borderRadius: '4px',
+            marginBottom: '1rem',
+            color: '#0a0'
+          }}>Cadastro realizado! Redirecionando...</div>}
+
           <form onSubmit={handleSubmit}>
             <div className="form-group">
-              <label>Tipo de Usuário</label>
+              <label>Tipo de Usuário *</label>
               <select
+                name="tipo"
                 value={formData.tipo}
-                onChange={(e) => setFormData({ ...formData, tipo: e.target.value })}
+                onChange={handleChange}
+                required
               >
                 <option value="CLIENTE">Cliente</option>
                 <option value="REVENDEDOR">Revendedor</option>
               </select>
             </div>
+
             <div className="form-group">
-              <label>Nome {formData.tipo === 'REVENDEDOR' && 'Completo'}</label>
+              <label>Nome Completo *</label>
               <input
                 type="text"
+                name="nome"
                 value={formData.nome}
-                onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
+                onChange={handleChange}
                 required
               />
             </div>
+
+            <div className="form-group">
+              <label>Email *</label>
+              <input
+                type="email"
+                name="email"
+                value={formData.email}
+                onChange={handleChange}
+                required
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Telefone *</label>
+              <input
+                type="tel"
+                name="telefone"
+                value={formData.telefone}
+                onChange={handleChange}
+                placeholder="(48) 99999-9999"
+                required
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Senha *</label>
+              <input
+                type="password"
+                name="senha"
+                value={formData.senha}
+                onChange={handleChange}
+                minLength="6"
+                required
+              />
+              <small style={{ color: '#666', fontSize: '0.85rem' }}>
+                Mínimo de 6 caracteres
+              </small>
+            </div>
+
+            {/* CAMPOS ESPECÍFICOS PARA REVENDEDOR */}
             {formData.tipo === 'REVENDEDOR' && (
               <>
                 <div className="form-group">
-                  <label>CNPJ</label>
+                  <label>CNPJ *</label>
                   <input
                     type="text"
+                    name="cnpj"
                     value={formData.cnpj}
-                    onChange={(e) => setFormData({ ...formData, cnpj: e.target.value })}
+                    onChange={handleChange}
+                    placeholder="00.000.000/0000-00"
                     required
                   />
                 </div>
                 <div className="form-group">
-                  <label>Nome da Loja</label>
+                  <label>Nome da Loja *</label>
                   <input
                     type="text"
+                    name="nomeLoja"
                     value={formData.nomeLoja}
-                    onChange={(e) => setFormData({ ...formData, nomeLoja: e.target.value })}
+                    onChange={handleChange}
                     required
                   />
                 </div>
               </>
             )}
-            <div className="form-group">
-              <label>Email</label>
-              <input
-                type="email"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                required
-              />
-            </div>
-            <div className="form-group">
-              <label>Telefone</label>
-              <input
-                type="tel"
-                value={formData.telefone}
-                onChange={(e) => setFormData({ ...formData, telefone: e.target.value })}
-                required
-              />
-            </div>
-            <div className="form-group">
-              <label>Senha</label>
-              <input
-                type="password"
-                value={formData.senha}
-                onChange={(e) => setFormData({ ...formData, senha: e.target.value })}
-                required
-              />
-            </div>
-            <button type="submit" className="submit-btn" disabled={loading}>
+
+            {/* CAMPOS ESPECÍFICOS PARA CLIENTE */}
+            {formData.tipo === 'CLIENTE' && (
+              <>
+                <h3 style={{ marginTop: '1.5rem', marginBottom: '1rem' }}>
+                  Endereço (Opcional)
+                </h3>
+
+                <div className="form-row" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1rem' }}>
+                  <div className="form-group">
+                    <label>Rua</label>
+                    <input
+                      type="text"
+                      name="rua"
+                      value={formData.endereco.rua}
+                      onChange={handleEnderecoChange}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Número</label>
+                    <input
+                      type="text"
+                      name="numero"
+                      value={formData.endereco.numero}
+                      onChange={handleEnderecoChange}
+                    />
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label>Complemento</label>
+                  <input
+                    type="text"
+                    name="complemento"
+                    value={formData.endereco.complemento}
+                    onChange={handleEnderecoChange}
+                    placeholder="Apto, Bloco, etc."
+                  />
+                </div>
+
+                <div className="form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <div className="form-group">
+                    <label>Bairro</label>
+                    <input
+                      type="text"
+                      name="bairro"
+                      value={formData.endereco.bairro}
+                      onChange={handleEnderecoChange}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>CEP</label>
+                    <input
+                      type="text"
+                      name="cep"
+                      value={formData.endereco.cep}
+                      onChange={handleEnderecoChange}
+                      placeholder="88000-000"
+                    />
+                  </div>
+                </div>
+
+                <div className="form-row" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1rem' }}>
+                  <div className="form-group">
+                    <label>Cidade</label>
+                    <input
+                      type="text"
+                      name="cidade"
+                      value={formData.endereco.cidade}
+                      onChange={handleEnderecoChange}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Estado</label>
+                    <select
+                      name="estado"
+                      value={formData.endereco.estado}
+                      onChange={handleEnderecoChange}
+                    >
+                      <option value="">Selecione</option>
+                      <option value="SC">SC</option>
+                      <option value="PR">PR</option>
+                      <option value="RS">RS</option>
+                      <option value="SP">SP</option>
+                      {/* Adicione outros estados conforme necessário */}
+                    </select>
+                  </div>
+                </div>
+              </>
+            )}
+
+            <button
+              type="submit"
+              className="submit-btn"
+              disabled={loading}
+              style={{ marginTop: '1.5rem', width: '100%' }}
+            >
               {loading ? 'Cadastrando...' : 'Cadastrar'}
             </button>
           </form>
-          <p className="auth-link">
-            Já tem conta? <a onClick={() => setCurrentPage('login')}>Entre aqui</a>
+
+          <p className="auth-link" style={{ marginTop: '1rem', textAlign: 'center' }}>
+            Já tem conta? <a onClick={() => setCurrentPage('login')} style={{
+              color: 'var(--primary)',
+              cursor: 'pointer',
+              textDecoration: 'underline'
+            }}>Entre aqui</a>
           </p>
         </div>
       </div>
