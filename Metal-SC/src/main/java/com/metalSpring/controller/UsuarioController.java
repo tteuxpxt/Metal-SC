@@ -3,7 +3,10 @@ package com.metalSpring.controller;
 import com.metalSpring.model.dto.UsuarioDTO;
 import com.metalSpring.model.dto.UsuarioCadastroDTO;
 import com.metalSpring.model.entity.Usuario;
+import com.metalSpring.model.entity.Revendedor;
+import com.metalSpring.model.enums.UsuarioTipo;
 import com.metalSpring.services.UsuarioService;
+import com.metalSpring.services.RevendedorService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -18,6 +21,9 @@ public class UsuarioController {
 
     @Autowired
     private UsuarioService usuarioService;
+
+    @Autowired
+    private RevendedorService revendedorService;
 
     @GetMapping
     public ResponseEntity<List<Usuario>> listarTodos() {
@@ -44,44 +50,100 @@ public class UsuarioController {
     }
 
     @PostMapping
-    public ResponseEntity<Usuario> criar(@RequestBody UsuarioCadastroDTO dto) {
+    public ResponseEntity<?> criar(@RequestBody UsuarioCadastroDTO dto) {
         try {
-            Usuario usuario = usuarioService.criar(converterParaEntity(dto));
+            // Validações básicas
+            if (dto.getNome() == null || dto.getNome().trim().isEmpty()) {
+                return ResponseEntity.badRequest().body("Nome é obrigatório");
+            }
+            if (dto.getEmail() == null || dto.getEmail().trim().isEmpty()) {
+                return ResponseEntity.badRequest().body("Email é obrigatório");
+            }
+            if (dto.getSenha() == null || dto.getSenha().trim().isEmpty()) {
+                return ResponseEntity.badRequest().body("Senha é obrigatória");
+            }
+            if (dto.getTipo() == null) {
+                return ResponseEntity.badRequest().body("Tipo de usuário é obrigatório");
+            }
+
+            // Verifica se email já existe
+            if (usuarioService.emailExiste(dto.getEmail())) {
+                return ResponseEntity.badRequest().body("Email já cadastrado");
+            }
+
+            Usuario usuario;
+
+            // Se for REVENDEDOR, cria Revendedor
+            if (dto.getTipo() == UsuarioTipo.REVENDEDOR) {
+                if (dto.getCnpj() == null || dto.getCnpj().trim().isEmpty()) {
+                    return ResponseEntity.badRequest().body("CNPJ é obrigatório para revendedor");
+                }
+                if (dto.getNomeLoja() == null || dto.getNomeLoja().trim().isEmpty()) {
+                    return ResponseEntity.badRequest().body("Nome da loja é obrigatório para revendedor");
+                }
+
+                Revendedor revendedor = new Revendedor();
+                revendedor.setNome(dto.getNome());
+                revendedor.setEmail(dto.getEmail());
+                revendedor.setSenhaHash(dto.getSenha()); // Será codificada no service
+                revendedor.setTelefone(dto.getTelefone());
+                revendedor.setTipo(UsuarioTipo.REVENDEDOR);
+                revendedor.setCnpj(dto.getCnpj());
+                revendedor.setNomeLoja(dto.getNomeLoja());
+
+                usuario = revendedorService.criar(revendedor);
+            } else {
+                // Cria usuário comum (CLIENTE ou ADMINISTRADOR)
+                usuario = new Usuario();
+                usuario.setNome(dto.getNome());
+                usuario.setEmail(dto.getEmail());
+                usuario.setSenhaHash(dto.getSenha()); // Será codificada no service
+                usuario.setTelefone(dto.getTelefone());
+                usuario.setTipo(dto.getTipo());
+
+                if (dto.getEndereco() != null) {
+                    com.metalSpring.model.embeddable.Endereco endereco = new com.metalSpring.model.embeddable.Endereco();
+                    endereco.setRua(dto.getEndereco().getRua());
+                    endereco.setNumero(dto.getEndereco().getNumero());
+                    endereco.setComplemento(dto.getEndereco().getComplemento());
+                    endereco.setBairro(dto.getEndereco().getBairro());
+                    endereco.setCidade(dto.getEndereco().getCidade());
+                    endereco.setEstado(dto.getEndereco().getEstado());
+                    endereco.setCep(dto.getEndereco().getCep());
+                    usuario.setEndereco(endereco);
+                }
+
+                usuario = usuarioService.criar(usuario);
+            }
+
             return ResponseEntity.status(HttpStatus.CREATED).body(usuario);
-        } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().build();
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.badRequest().body("Erro ao criar usuário: " + e.getMessage());
         }
     }
 
     @PutMapping("/{id}/senha")
-    public ResponseEntity<Void> alterarSenha(
+    public ResponseEntity<?> alterarSenha(
             @PathVariable String id,
             @RequestParam String senhaAtual,
             @RequestParam String novaSenha) {
         try {
-            usuarioService.buscarPorId(id).ifPresent(usuario -> {
-                // Implementar lógica de alteração de senha no service
-            });
-            return ResponseEntity.ok().build();
+            usuarioService.alterarSenha(id, senhaAtual, novaSenha);
+            return ResponseEntity.ok().body("Senha alterada com sucesso");
         } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().build();
+            return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deletar(@PathVariable String id) {
-        usuarioService.buscarPorId(id).ifPresent(usuario -> {
-            // Implementar lógica de deleção
-        });
-        return ResponseEntity.noContent().build();
-    }
-
-    private Usuario converterParaEntity(UsuarioCadastroDTO dto) {
-        Usuario usuario = new Usuario();
-        usuario.setNome(dto.getNome());
-        usuario.setEmail(dto.getEmail());
-        usuario.setTelefone(dto.getTelefone());
-        usuario.setTipo(dto.getTipo());
-        return usuario;
+        try {
+            usuarioService.deletar(id);
+            return ResponseEntity.noContent().build();
+        } catch (RuntimeException e) {
+            return ResponseEntity.notFound().build();
+        }
     }
 }

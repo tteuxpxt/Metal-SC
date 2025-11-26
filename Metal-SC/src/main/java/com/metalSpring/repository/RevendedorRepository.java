@@ -11,6 +11,7 @@ import java.util.Optional;
 @Repository
 public interface RevendedorRepository extends JpaRepository<Revendedor, String> {
     Optional<Revendedor> findByCnpj(String cnpj);
+    Optional<Revendedor> findByEmail(String email);
     List<Revendedor> findByNomeLojaContainingIgnoreCase(String nomeLoja);
     List<Revendedor> findByAvaliacaoMediaGreaterThanEqual(double avaliacao);
     List<Revendedor> findByAvaliacaoMediaBetween(double min, double max);

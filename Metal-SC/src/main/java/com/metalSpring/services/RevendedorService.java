@@ -5,9 +5,11 @@ import com.metalSpring.model.entity.Peca;
 import com.metalSpring.repository.RevendedorRepository;
 import com.metalSpring.repository.PecaRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -19,6 +21,9 @@ public class RevendedorService {
 
     @Autowired
     private PecaRepository pecaRepository;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
 
     public List<Revendedor> listarTodos() {
         return revendedorRepository.findAll();
@@ -42,11 +47,29 @@ public class RevendedorService {
 
     @Transactional
     public Revendedor criar(Revendedor revendedor) {
+        // Validações
+        if (revendedor.getCnpj() == null || revendedor.getCnpj().trim().isEmpty()) {
+            throw new RuntimeException("CNPJ é obrigatório");
+        }
+
+        if (revendedor.getNomeLoja() == null || revendedor.getNomeLoja().trim().isEmpty()) {
+            throw new RuntimeException("Nome da loja é obrigatório");
+        }
+
         if (revendedorRepository.findByCnpj(revendedor.getCnpj()).isPresent()) {
             throw new RuntimeException("CNPJ já cadastrado");
         }
 
+        // Codifica a senha
+        if (revendedor.getSenhaHash() != null && !revendedor.getSenhaHash().isEmpty()) {
+            revendedor.setSenhaHash(passwordEncoder.encode(revendedor.getSenhaHash()));
+        }
+
+        // Configurações iniciais
         revendedor.setAvaliacaoMedia(0.0);
+        revendedor.setDataCadastro(LocalDateTime.now());
+        revendedor.setAtivo(true);
+
         return revendedorRepository.save(revendedor);
     }
 

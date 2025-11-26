@@ -9,6 +9,8 @@ public class UsuarioCadastroDTO {
     private String telefone;
     private UsuarioTipo tipo;
     private EnderecoDTO endereco;
+    private String cnpj;
+    private String nomeLoja;
 
     // Construtores
     public UsuarioCadastroDTO() {}
@@ -31,4 +33,10 @@ public class UsuarioCadastroDTO {
 
     public EnderecoDTO getEndereco() { return endereco; }
     public void setEndereco(EnderecoDTO endereco) { this.endereco = endereco; }
+
+    public String getCnpj() {return cnpj;}
+    public void setCnpj(String cnpj) {this.cnpj = cnpj;}
+
+    public String getNomeLoja() {return nomeLoja;}
+    public void setNomeLoja(String nomeLoja) {this.nomeLoja = nomeLoja;}
 }
