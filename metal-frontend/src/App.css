@@ -1,29 +1,45 @@
-/* Reset & Base */
+/* ==================== RESET & BASE ==================== */
 * {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
-  font-family: 'Nunito', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
 :root {
-  --primary: #6e0ad6; /* Roxo OLX style */
-  --primary-dark: #5005a0;
-  --secondary: #f28000; /* Laranja Call to Action */
-  --secondary-hover: #d97300;
-  --bg-light: #f8f9fa;
-  --text-dark: #3a3a3a;
-  --text-light: #666;
-  --white: #ffffff;
-  --border: #e1e1e1;
-  --success: #28a745;
-  --danger: #dc3545;
-  --shadow: 0 2px 8px rgba(0,0,0,0.1);
+  /* Cores baseadas no ícone */
+  --primary: #7c3aed;        /* Roxo vibrante */
+  --primary-dark: #6d28d9;   /* Roxo escuro */
+  --primary-light: #a78bfa;  /* Roxo claro */
+  --accent: #f97316;         /* Laranja vibrante */
+  --accent-hover: #ea580c;   /* Laranja escuro */
+
+  /* Cores neutras */
+  --bg-main: #f8fafc;
+  --bg-card: #ffffff;
+  --text-primary: #1e293b;
+  --text-secondary: #64748b;
+  --text-light: #94a3b8;
+  --border: #e2e8f0;
+  --border-light: #f1f5f9;
+
+  /* Sombras */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+
+  /* Status */
+  --success: #10b981;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+  --info: #3b82f6;
 }
 
 body {
-  background-color: var(--bg-light);
-  color: var(--text-dark);
+  background-color: var(--bg-main);
+  color: var(--text-primary);
+  line-height: 1.6;
 }
 
 .app {
@@ -33,9 +49,9 @@ body {
 }
 
 .container {
-  max-width: 1200px;
+  max-width: 1280px;
   margin: 0 auto;
-  padding: 0 1rem;
+  padding: 0 1.5rem;
   width: 100%;
 }
 
@@ -44,20 +60,37 @@ body {
   padding: 2rem 0;
 }
 
-/* Buttons */
+/* ==================== BUTTONS ==================== */
 button {
   cursor: pointer;
   border: none;
-  border-radius: 4px;
+  border-radius: 8px;
   font-weight: 600;
-  transition: all 0.2s;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  font-size: 0.9375rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .cta-btn, .submit-btn, .checkout-btn {
-  background-color: var(--secondary);
+  background: linear-gradient(135deg, var(--accent) 0%, #fb923c 100%);
   color: white;
-  padding: 0.8rem 1.5rem;
-  font-size: 1rem;
+  padding: 0.875rem 1.75rem;
+  box-shadow: var(--shadow-md);
+}
+
+.cta-btn:hover:not(:disabled),
+.submit-btn:hover:not(:disabled),
+.checkout-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
 }
 
 .cta-btn:hover, .submit-btn:hover {
@@ -554,12 +587,12 @@ button {
     padding: 1rem;
     box-shadow: 0 4px 4px rgba(0,0,0,0.1);
   }
-  
+
   .products-content { flex-direction: column; }
   .filters { width: 100%; display: none; }
   .filters.show { display: block; position: fixed; top: 0; left: 0; height: 100vh; z-index: 200; overflow-y: auto; }
   .cart-content { grid-template-columns: 1fr; }
-  
+
   .hero h1 { font-size: 1.8rem; }
   .mobile-menu-btn { display: block; background: none; border: none; }
   .filter-toggle-btn { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; width: 100%; justify-content: center; padding: 0.8rem; background: white; border: 1px solid var(--border); border-radius: 4px; }

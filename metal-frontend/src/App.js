@@ -122,10 +122,6 @@ const Header = () => {
               <span>Metal-SC</span>
             </div>
 
-            <button className="mobile-menu-btn" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
-              <Menu size={24} />
-            </button>
-
             <nav className={`nav ${mobileMenuOpen ? 'mobile-open' : ''}`}>
               <a onClick={() => { setCurrentPage('home'); setMobileMenuOpen(false); }}>Início</a>
               <a onClick={() => { setCurrentPage('products'); setMobileMenuOpen(false); }}>Peças</a>
@@ -1036,6 +1032,7 @@ const RevendedorDashboard = () => {
           };
 
           const handleSave = async (pecaData) => {
+
             const method = editingPeca ? 'PUT' : 'POST';
             const url = editingPeca
               ? `${API_URL}/pecas/${editingPeca.id}`
@@ -1055,6 +1052,7 @@ const RevendedorDashboard = () => {
 
               if (res.ok) {
                 setShowModal(false);
+                console.log(payload)
                 loadPecas();
                 alert(editingPeca ? 'Peça atualizada!' : 'Peça cadastrada!');
               } else {

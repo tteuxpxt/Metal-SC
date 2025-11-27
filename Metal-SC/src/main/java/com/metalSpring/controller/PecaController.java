@@ -55,71 +55,99 @@ public class PecaController {
         return ResponseEntity.ok(pecaService.listarDisponiveis());
     }
 
+    /**
+     * ✅ ENDPOINT CORRIGIDO PARA CRIAR PEÇAS
+     * Agora recebe o revendedorId do DTO e passa para o service
+     */
     @PostMapping
-    public ResponseEntity<Peca> criar(@RequestBody PecaDTO dto) {
+    public ResponseEntity<?> criar(@RequestBody PecaDTO dto) {
         try {
-            Peca peca = pecaService.criar(converterParaEntity(dto));
-            return ResponseEntity.status(HttpStatus.CREATED).body(peca);
+            // Valida se o revendedorId foi enviado
+            if (dto.getRevendedorId() == null || dto.getRevendedorId().isEmpty()) {
+                return ResponseEntity.badRequest()
+                        .body("O campo 'revendedorId' é obrigatório");
+            }
+
+            // Converte DTO para Entity
+            Peca peca = converterParaEntity(dto);
+
+            // Cria a peça com o revendedor
+            Peca pecaCriada = pecaService.criar(peca, dto.getRevendedorId());
+
+            return ResponseEntity.status(HttpStatus.CREATED).body(pecaCriada);
         } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().build();
+            return ResponseEntity.badRequest()
+                    .body("Erro ao criar peça: " + e.getMessage());
         }
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Peca> atualizar(@PathVariable String id, @RequestBody PecaDTO dto) {
-        return pecaService.buscarPorId(id)
-                .map(pecaExistente -> {
-                    atualizarDados(pecaExistente, dto);
-                    return ResponseEntity.ok(pecaExistente);
-                })
-                .orElse(ResponseEntity.notFound().build());
+    public ResponseEntity<?> atualizar(@PathVariable String id, @RequestBody PecaDTO dto) {
+        try {
+            Peca pecaAtualizada = converterParaEntity(dto);
+            Peca peca = pecaService.atualizar(id, pecaAtualizada);
+            return ResponseEntity.ok(peca);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest()
+                    .body("Erro ao atualizar peça: " + e.getMessage());
+        }
     }
 
     @PutMapping("/{id}/estoque")
-    public ResponseEntity<Peca> alterarEstoque(
+    public ResponseEntity<?> alterarEstoque(
             @PathVariable String id,
             @RequestParam Integer quantidade) {
-        return pecaService.buscarPorId(id)
-                .map(peca -> {
-                    peca.setEstoque(quantidade);
-                    return ResponseEntity.ok(peca);
-                })
-                .orElse(ResponseEntity.notFound().build());
+        try {
+            pecaService.alterarEstoque(id, quantidade);
+            return pecaService.buscarPorId(id)
+                    .map(ResponseEntity::ok)
+                    .orElse(ResponseEntity.notFound().build());
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest()
+                    .body("Erro ao alterar estoque: " + e.getMessage());
+        }
     }
 
     @PostMapping("/{id}/imagens")
-    public ResponseEntity<Void> adicionarImagem(
+    public ResponseEntity<?> adicionarImagem(
             @PathVariable String id,
             @RequestParam String url) {
-        return pecaService.buscarPorId(id)
-                .map(peca -> {
-                    peca.getImagens().add(url);
-                    return ResponseEntity.ok().<Void>build();
-                })
-                .orElse(ResponseEntity.notFound().build());
+        try {
+            pecaService.adicionarImagem(id, url);
+            return ResponseEntity.ok().build();
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest()
+                    .body("Erro ao adicionar imagem: " + e.getMessage());
+        }
     }
 
     @DeleteMapping("/{id}/imagens")
-    public ResponseEntity<Void> removerImagem(
+    public ResponseEntity<?> removerImagem(
             @PathVariable String id,
             @RequestParam String url) {
-        return pecaService.buscarPorId(id)
-                .map(peca -> {
-                    peca.getImagens().remove(url);
-                    return ResponseEntity.ok().<Void>build();
-                })
-                .orElse(ResponseEntity.notFound().build());
+        try {
+            pecaService.removerImagem(id, url);
+            return ResponseEntity.ok().build();
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest()
+                    .body("Erro ao remover imagem: " + e.getMessage());
+        }
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deletar(@PathVariable String id) {
-        if (pecaService.buscarPorId(id).isPresent()) {
-            // Implementar lógica de deleção no service
+    public ResponseEntity<?> deletar(@PathVariable String id) {
+        try {
+            pecaService.deletar(id);
             return ResponseEntity.noContent().build();
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest()
+                    .body("Erro ao deletar peça: " + e.getMessage());
         }
-        return ResponseEntity.notFound().build();
     }
 
+    /**
+     * Converte PecaDTO para Entity Peca
+     */
     private Peca converterParaEntity(PecaDTO dto) {
         Peca peca = new Peca();
         peca.setNome(dto.getNome());
@@ -131,15 +159,7 @@ public class PecaController {
         peca.setMarca(dto.getMarca());
         peca.setModeloVeiculo(dto.getModeloVeiculo());
         peca.setEstoque(dto.getEstoque());
+        // NÃO setamos o vendedor aqui - isso é feito no service
         return peca;
-    }
-
-    private void atualizarDados(Peca peca, PecaDTO dto) {
-        if (dto.getNome() != null) peca.setNome(dto.getNome());
-        if (dto.getDescricao() != null) peca.setDescricao(dto.getDescricao());
-        if (dto.getCategoria() != null) peca.setCategoria(dto.getCategoria());
-        if (dto.getPreco() != null) peca.setPreco(dto.getPreco());
-        if (dto.getEstado() != null) peca.setEstado(dto.getEstado());
-        if (dto.getEstoque() != null) peca.setEstoque(dto.getEstoque());
     }
 }
