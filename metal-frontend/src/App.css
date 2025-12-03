@@ -58,6 +58,8 @@ body {
 .main-content {
   flex: 1;
   padding: 2rem 0;
+  position: relative;
+  z-index:1;
 }
 
 /* ==================== BUTTONS ==================== */
@@ -99,11 +101,11 @@ button:disabled {
 
 /* Header */
 .header {
-  background-color: var(--white);
+  background-color: #ffffff;
   box-shadow: 0 2px 4px rgba(0,0,0,0.05);
   position: sticky;
   top: 0;
-  z-index: 100;
+  z-index: 99999;
 }
 
 .header-content {
@@ -289,7 +291,7 @@ button:disabled {
   right: 10px;
   background: white;
   border-radius: 50%;
-  width: 32px;
+  width: 77px;
   height: 32px;
   display: flex;
   align-items: center;
