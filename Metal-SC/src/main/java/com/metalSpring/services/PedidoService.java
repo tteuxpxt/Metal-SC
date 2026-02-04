@@ -189,6 +189,17 @@ public class PedidoService {
     }
 
     public Pedido criarPedido(String clienteId, String revendedorId, EnderecoDTO enderecoEntrega) {
-        return null;
+        Endereco endereco = new Endereco();
+        if (enderecoEntrega != null) {
+            endereco.setRua(enderecoEntrega.getRua());
+            endereco.setNumero(enderecoEntrega.getNumero());
+            endereco.setComplemento(enderecoEntrega.getComplemento());
+            endereco.setBairro(enderecoEntrega.getBairro());
+            endereco.setCidade(enderecoEntrega.getCidade());
+            endereco.setEstado(enderecoEntrega.getEstado());
+            endereco.setCep(enderecoEntrega.getCep());
+        }
+
+        return criar(clienteId, revendedorId, endereco);
     }
 }

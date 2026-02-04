@@ -2,6 +2,7 @@ package com.metalSpring.model.entity;
 
 import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.metalSpring.model.enums.PecaEstado;
 import jakarta.persistence.*;
 import java.util.ArrayList;
@@ -192,6 +193,11 @@ public class Peca {
 
     public void setVendedor(Revendedor vendedor) {
         this.vendedor = vendedor;
+    }
+
+    @JsonProperty("revendedorId")
+    public String getRevendedorId() {
+        return vendedor != null ? vendedor.getId() : null;
     }
 
     public Integer getEstoque() {

@@ -55,7 +55,17 @@ public class PedidoController {
                     dto.getRevendedorId(),
                     dto.getEnderecoEntrega()
             );
-            return ResponseEntity.status(HttpStatus.CREATED).body(pedido);
+
+            if (dto.getItens() != null) {
+                for (ItemPedidoDTO item : dto.getItens()) {
+                    if (item.getPecaId() != null && item.getQuantidade() != null) {
+                        pedidoService.adicionarItem(pedido.getId(), item.getPecaId(), item.getQuantidade());
+                    }
+                }
+            }
+
+            Pedido atualizado = pedidoService.buscarPorId(pedido.getId()).orElse(pedido);
+            return ResponseEntity.status(HttpStatus.CREATED).body(atualizado);
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().build();
         }

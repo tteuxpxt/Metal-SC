@@ -7,8 +7,15 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/pecas")
@@ -115,6 +122,46 @@ public class PecaController {
         try {
             pecaService.adicionarImagem(id, url);
             return ResponseEntity.ok().build();
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest()
+                    .body("Erro ao adicionar imagem: " + e.getMessage());
+        }
+    }
+
+    @PostMapping("/{id}/imagens/upload")
+    public ResponseEntity<?> uploadImagem(
+            @PathVariable String id,
+            @RequestParam("file") MultipartFile file) {
+        if (file.isEmpty()) {
+            return ResponseEntity.badRequest().body("Arquivo de imagem vazio");
+        }
+
+        try {
+            Peca peca = pecaService.buscarPorId(id)
+                    .orElseThrow(() -> new RuntimeException("Peça não encontrada"));
+            if (peca.getImagens() != null && peca.getImagens().size() >= 3) {
+                return ResponseEntity.badRequest().body("Limite de 3 imagens por peça");
+            }
+
+            String originalName = file.getOriginalFilename();
+            String extension = "";
+            if (originalName != null && originalName.contains(".")) {
+                extension = originalName.substring(originalName.lastIndexOf('.'));
+            }
+
+            String filename = UUID.randomUUID() + extension;
+            Path dir = Paths.get("uploads", "pecas", id);
+            Files.createDirectories(dir);
+            Path destination = dir.resolve(filename);
+            Files.copy(file.getInputStream(), destination);
+
+            String url = "/uploads/pecas/" + id + "/" + filename;
+            pecaService.adicionarImagem(id, url);
+
+            return ResponseEntity.ok(Map.of("url", url));
+        } catch (IOException e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Erro ao salvar imagem");
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest()
                     .body("Erro ao adicionar imagem: " + e.getMessage());
