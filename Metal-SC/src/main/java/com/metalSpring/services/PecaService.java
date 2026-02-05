@@ -5,9 +5,11 @@ import com.metalSpring.model.entity.Revendedor;
 import com.metalSpring.repository.PecaRepository;
 import com.metalSpring.repository.RevendedorRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -20,10 +22,26 @@ public class PecaService {
     @Autowired
     private RevendedorRepository revendedorRepository;
 
+    @Value("${app.taxa.limite:0}")
+    private double limiteTaxaEmAberto;
+
+    private void desativarPremiumExpirado() {
+        List<Revendedor> expirados =
+                revendedorRepository.findByPremiumAtivoTrueAndPremiumAteBefore(LocalDateTime.now());
+        if (!expirados.isEmpty()) {
+            for (Revendedor revendedor : expirados) {
+                revendedor.setPremiumAtivo(false);
+                revendedor.setPremiumAte(null);
+            }
+            revendedorRepository.saveAll(expirados);
+        }
+    }
+
     // ==================== MÉTODOS DE CONSULTA ====================
 
     public List<Peca> listarTodas() {
-        return pecaRepository.findAll();
+        desativarPremiumExpirado();
+        return pecaRepository.findAllOrderByPremium();
     }
 
     public Optional<Peca> buscarPorId(String id) {
@@ -40,6 +58,18 @@ public class PecaService {
 
     public List<Peca> buscarPorCategoria(String categoria) {
         return pecaRepository.findByCategoriaIgnoreCase(categoria);
+    }
+
+    public List<Peca> buscarPorCidade(String cidade) {
+        return pecaRepository.findByEnderecoCidadeIgnoreCase(cidade);
+    }
+
+    public List<Peca> buscarPorEstadoEndereco(String estado) {
+        return pecaRepository.findByEnderecoEstadoIgnoreCase(estado);
+    }
+
+    public List<Peca> buscarPorCidadeEEstado(String cidade, String estado) {
+        return pecaRepository.findByEnderecoCidadeIgnoreCaseAndEnderecoEstadoIgnoreCase(cidade, estado);
     }
 
     public List<Peca> buscarPorRevendedor(String revendedorId) {
@@ -88,6 +118,10 @@ public class PecaService {
         }
 
         Revendedor revendedor = revendedorOpt.get();
+
+        if (revendedor.getSaldoTaxas() != null && revendedor.getSaldoTaxas() > limiteTaxaEmAberto) {
+            throw new RuntimeException("Revendedor com taxas em aberto. Regularize para anunciar.");
+        }
         System.out.println("✅ [PecaService] Revendedor encontrado: " + revendedor.getNome());
 
         // Associa o revendedor à peça
@@ -143,6 +177,13 @@ public class PecaService {
         }
         if (pecaAtualizada.getModeloVeiculo() != null) {
             peca.setModeloVeiculo(pecaAtualizada.getModeloVeiculo());
+        }
+        if (pecaAtualizada.getEndereco() != null) {
+            if (peca.getEndereco() == null) {
+                peca.setEndereco(pecaAtualizada.getEndereco());
+            } else {
+                peca.getEndereco().atualizar(pecaAtualizada.getEndereco());
+            }
         }
         if (pecaAtualizada.getEstoque() != null) {
             peca.setEstoque(pecaAtualizada.getEstoque());
@@ -221,3 +262,6 @@ public class PecaService {
         System.out.println("✅ [PecaService] Peça deletada com sucesso");
     }
 }
+
+
+

@@ -30,12 +30,21 @@ public class Pedido {
     @Column(nullable = false)
     private Double valorTotal;
 
+    private Double taxaPlataforma;
+
+    private Double valorLiquidoRevendedor;
+
+    @Column(nullable = false)
+    private Boolean taxaPaga = false;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private PedidoStatus status;
 
     @Column(nullable = false)
     private LocalDateTime dataCriacao;
+
+    private LocalDateTime dataPagamento;
 
     @Embedded
     private Endereco enderecoEntrega;
@@ -111,11 +120,23 @@ public class Pedido {
     public Double getValorTotal() { return valorTotal; }
     public void setValorTotal(Double valorTotal) { this.valorTotal = valorTotal; }
 
+    public Double getTaxaPlataforma() { return taxaPlataforma; }
+    public void setTaxaPlataforma(Double taxaPlataforma) { this.taxaPlataforma = taxaPlataforma; }
+
+    public Double getValorLiquidoRevendedor() { return valorLiquidoRevendedor; }
+    public void setValorLiquidoRevendedor(Double valorLiquidoRevendedor) { this.valorLiquidoRevendedor = valorLiquidoRevendedor; }
+
+    public Boolean getTaxaPaga() { return taxaPaga; }
+    public void setTaxaPaga(Boolean taxaPaga) { this.taxaPaga = taxaPaga; }
+
     public PedidoStatus getStatus() { return status; }
     public void setStatus(PedidoStatus status) { this.status = status; }
 
     public LocalDateTime getDataCriacao() { return dataCriacao; }
     public void setDataCriacao(LocalDateTime dataCriacao) { this.dataCriacao = dataCriacao; }
+
+    public LocalDateTime getDataPagamento() { return dataPagamento; }
+    public void setDataPagamento(LocalDateTime dataPagamento) { this.dataPagamento = dataPagamento; }
 
     public Endereco getEnderecoEntrega() { return enderecoEntrega; }
     public void setEnderecoEntrega(Endereco enderecoEntrega) { this.enderecoEntrega = enderecoEntrega; }

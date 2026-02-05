@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -141,5 +142,21 @@ public class MensagemSuporteService {
 
     public List<MensagemSuporte> buscarRecentes(int limite) {
         return mensagemSuporteRepository.findTop10ByOrderByDataEnvioDesc();
+    }
+
+    public Map<String, Object> obterEstatisticas() {
+        long total = mensagemSuporteRepository.count();
+        long naoLidas = mensagemSuporteRepository.countByLida(false);
+        long resolvidas = mensagemSuporteRepository.countByLida(true);
+        long emAndamento = mensagemSuporteRepository.findMensagensComAtendente().stream()
+                .filter(mensagem -> Boolean.FALSE.equals(mensagem.getLida()))
+                .count();
+
+        return Map.of(
+                "total", total,
+                "naoLidas", naoLidas,
+                "emAndamento", emAndamento,
+                "resolvidas", resolvidas
+        );
     }
 }

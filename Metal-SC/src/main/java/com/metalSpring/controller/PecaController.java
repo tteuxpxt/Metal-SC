@@ -47,6 +47,22 @@ public class PecaController {
         return ResponseEntity.ok(pecaService.buscarPorMarca(marca));
     }
 
+    @GetMapping("/localizacao")
+    public ResponseEntity<List<Peca>> buscarPorLocalizacao(
+            @RequestParam(required = false) String cidade,
+            @RequestParam(required = false) String estado) {
+        if ((cidade == null || cidade.isBlank()) && (estado == null || estado.isBlank())) {
+            return ResponseEntity.badRequest().build();
+        }
+        if (cidade != null && !cidade.isBlank() && estado != null && !estado.isBlank()) {
+            return ResponseEntity.ok(pecaService.buscarPorCidadeEEstado(cidade, estado));
+        }
+        if (cidade != null && !cidade.isBlank()) {
+            return ResponseEntity.ok(pecaService.buscarPorCidade(cidade));
+        }
+        return ResponseEntity.ok(pecaService.buscarPorEstadoEndereco(estado));
+    }
+
     @GetMapping("/nome/{nome}")
     public ResponseEntity<List<Peca>> buscarPorNome(@PathVariable String nome) {
         return ResponseEntity.ok(pecaService.buscarPorNome(nome));
@@ -206,7 +222,19 @@ public class PecaController {
         peca.setMarca(dto.getMarca());
         peca.setModeloVeiculo(dto.getModeloVeiculo());
         peca.setEstoque(dto.getEstoque());
+        if (dto.getEndereco() != null) {
+            com.metalSpring.model.embeddable.Endereco endereco = new com.metalSpring.model.embeddable.Endereco();
+            endereco.setRua(dto.getEndereco().getRua());
+            endereco.setNumero(dto.getEndereco().getNumero());
+            endereco.setComplemento(dto.getEndereco().getComplemento());
+            endereco.setBairro(dto.getEndereco().getBairro());
+            endereco.setCidade(dto.getEndereco().getCidade());
+            endereco.setEstado(dto.getEndereco().getEstado());
+            endereco.setCep(dto.getEndereco().getCep());
+            peca.setEndereco(endereco);
+        }
         // NÃO setamos o vendedor aqui - isso é feito no service
         return peca;
     }
 }
+

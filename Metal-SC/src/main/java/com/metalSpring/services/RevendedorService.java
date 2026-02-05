@@ -69,6 +69,9 @@ public class RevendedorService {
         revendedor.setAvaliacaoMedia(0.0);
         revendedor.setDataCadastro(LocalDateTime.now());
         revendedor.setAtivo(true);
+        revendedor.setSaldoTaxas(0.0);
+        revendedor.setPremiumAtivo(false);
+        revendedor.setPremiumAte(null);
 
         return revendedorRepository.save(revendedor);
     }
@@ -189,3 +192,4 @@ public class RevendedorService {
         return revendedorRepository.findByCnpj(cnpj).isPresent();
     }
 }
+

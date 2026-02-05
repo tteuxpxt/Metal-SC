@@ -2,6 +2,7 @@ package com.metalSpring.model.entity;
 
 import com.metalSpring.model.enums.UsuarioTipo;
 import jakarta.persistence.*;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -17,6 +18,14 @@ public class Revendedor extends Usuario {
     private String nomeLoja;
 
     private Double avaliacaoMedia;
+
+    @Column(nullable = false)
+    private Double saldoTaxas = 0.0;
+
+    @Column(nullable = false)
+    private Boolean premiumAtivo = false;
+
+    private LocalDateTime premiumAte;
 
     @OneToMany(mappedBy = "vendedor", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Peca> pecas = new ArrayList<>();
@@ -75,6 +84,15 @@ public class Revendedor extends Usuario {
 
     public Double getAvaliacaoMedia() { return avaliacaoMedia; }
     public void setAvaliacaoMedia(Double avaliacaoMedia) { this.avaliacaoMedia = avaliacaoMedia; }
+
+    public Double getSaldoTaxas() { return saldoTaxas; }
+    public void setSaldoTaxas(Double saldoTaxas) { this.saldoTaxas = saldoTaxas; }
+
+    public Boolean getPremiumAtivo() { return premiumAtivo; }
+    public void setPremiumAtivo(Boolean premiumAtivo) { this.premiumAtivo = premiumAtivo; }
+
+    public LocalDateTime getPremiumAte() { return premiumAte; }
+    public void setPremiumAte(LocalDateTime premiumAte) { this.premiumAte = premiumAte; }
 
     public List<Peca> getPecas() { return pecas; }
     public void setPecas(List<Peca> pecas) { this.pecas = pecas; }

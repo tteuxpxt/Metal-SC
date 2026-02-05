@@ -20,54 +20,54 @@ public class AvaliacaoController {
 
     @GetMapping
     public ResponseEntity<List<Avaliacao>> listarTodas() {
-        // return ResponseEntity.ok(avaliacaoService.listarTodas());
-        return ResponseEntity.ok(List.of());
+        return ResponseEntity.ok(avaliacaoService.listarTodas());
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<Avaliacao> buscarPorId(@PathVariable String id) {
-        // return avaliacaoService.buscarPorId(id)
-        //         .map(ResponseEntity::ok)
-        //         .orElse(ResponseEntity.notFound().build());
-        return ResponseEntity.notFound().build();
+        return avaliacaoService.buscarPorId(id)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
     }
 
     @GetMapping("/revendedor/{revendedorId}")
     public ResponseEntity<List<Avaliacao>> buscarPorRevendedor(@PathVariable String revendedorId) {
-        // return ResponseEntity.ok(avaliacaoService.buscarPorRevendedor(revendedorId));
-        return ResponseEntity.ok(List.of());
+        return ResponseEntity.ok(avaliacaoService.buscarPorRevendedor(revendedorId));
     }
 
     @GetMapping("/peca/{pecaId}")
     public ResponseEntity<List<Avaliacao>> buscarPorPeca(@PathVariable String pecaId) {
-        // return ResponseEntity.ok(avaliacaoService.buscarPorPeca(pecaId));
-        return ResponseEntity.ok(List.of());
+        return ResponseEntity.ok(avaliacaoService.buscarPorPeca(pecaId));
     }
 
     @GetMapping("/cliente/{clienteId}")
     public ResponseEntity<List<Avaliacao>> buscarPorCliente(@PathVariable String clienteId) {
-        // return ResponseEntity.ok(avaliacaoService.buscarPorCliente(clienteId));
-        return ResponseEntity.ok(List.of());
+        return ResponseEntity.ok(avaliacaoService.buscarPorCliente(clienteId));
     }
 
     @GetMapping("/revendedor/{revendedorId}/media")
     public ResponseEntity<Double> calcularMediaRevendedor(@PathVariable String revendedorId) {
-        // Double media = avaliacaoService.calcularMediaRevendedor(revendedorId);
-        return ResponseEntity.ok(0.0);
+        Double media = avaliacaoService.calcularMediaPorRevendedor(revendedorId);
+        return ResponseEntity.ok(media);
     }
 
     @GetMapping("/peca/{pecaId}/media")
     public ResponseEntity<Double> calcularMediaPeca(@PathVariable String pecaId) {
-        // Double media = avaliacaoService.calcularMediaPeca(pecaId);
-        return ResponseEntity.ok(0.0);
+        Double media = avaliacaoService.calcularMediaPorPeca(pecaId);
+        return ResponseEntity.ok(media);
     }
 
     @PostMapping
     public ResponseEntity<Avaliacao> criar(@RequestBody AvaliacaoDTO dto) {
         try {
-            // Avaliacao avaliacao = avaliacaoService.criar(dto);
-            // return ResponseEntity.status(HttpStatus.CREATED).body(avaliacao);
-            return ResponseEntity.status(HttpStatus.CREATED).build();
+            Avaliacao avaliacao = avaliacaoService.criar(
+                    dto.getClienteId(),
+                    dto.getRevendedorId(),
+                    dto.getPecaId(),
+                    dto.getNota(),
+                    dto.getComentario()
+            );
+            return ResponseEntity.status(HttpStatus.CREATED).body(avaliacao);
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().build();
         }
@@ -78,9 +78,8 @@ public class AvaliacaoController {
             @PathVariable String id,
             @RequestBody AvaliacaoDTO dto) {
         try {
-            // Avaliacao avaliacao = avaliacaoService.editar(id, dto.getNota(), dto.getComentario());
-            // return ResponseEntity.ok(avaliacao);
-            return ResponseEntity.ok().build();
+            Avaliacao avaliacao = avaliacaoService.editarAvaliacao(id, dto.getNota(), dto.getComentario());
+            return ResponseEntity.ok(avaliacao);
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().build();
         }
@@ -89,7 +88,7 @@ public class AvaliacaoController {
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> excluir(@PathVariable String id) {
         try {
-            // avaliacaoService.excluir(id);
+            avaliacaoService.excluir(id);
             return ResponseEntity.noContent().build();
         } catch (RuntimeException e) {
             return ResponseEntity.notFound().build();
@@ -101,7 +100,8 @@ public class AvaliacaoController {
             @PathVariable String id,
             @RequestParam String motivo) {
         try {
-            // avaliacaoService.denunciar(id, motivo);
+            avaliacaoService.buscarPorId(id)
+                    .orElseThrow(() -> new RuntimeException("Avaliacao nao encontrada"));
             return ResponseEntity.ok().build();
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().build();
@@ -113,7 +113,6 @@ public class AvaliacaoController {
         if (nota < 1 || nota > 5) {
             return ResponseEntity.badRequest().build();
         }
-        // return ResponseEntity.ok(avaliacaoService.buscarPorNota(nota));
-        return ResponseEntity.ok(List.of());
+        return ResponseEntity.ok(avaliacaoService.buscarPorNota(nota));
     }
 }

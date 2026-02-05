@@ -12,14 +12,14 @@ public class PecaDTO {
     private String marca;
     private String modeloVeiculo;
     private Integer estoque;
-    private String revendedorId; // ✅ IMPORTANTE: ID do revendedor
+    private String revendedorId;
+    private EnderecoDTO endereco;
 
-    // Construtores
     public PecaDTO() {}
 
     public PecaDTO(String nome, String descricao, String categoria, Double preco,
                    PecaEstado estado, Integer ano, String marca, String modeloVeiculo,
-                   Integer estoque, String revendedorId) {
+                   Integer estoque, String revendedorId, EnderecoDTO endereco) {
         this.nome = nome;
         this.descricao = descricao;
         this.categoria = categoria;
@@ -30,9 +30,9 @@ public class PecaDTO {
         this.modeloVeiculo = modeloVeiculo;
         this.estoque = estoque;
         this.revendedorId = revendedorId;
+        this.endereco = endereco;
     }
 
-    // Getters e Setters
     public String getNome() { return nome; }
     public void setNome(String nome) { this.nome = nome; }
 
@@ -62,4 +62,7 @@ public class PecaDTO {
 
     public String getRevendedorId() { return revendedorId; }
     public void setRevendedorId(String revendedorId) { this.revendedorId = revendedorId; }
+
+    public EnderecoDTO getEndereco() { return endereco; }
+    public void setEndereco(EnderecoDTO endereco) { this.endereco = endereco; }
 }

@@ -21,10 +21,20 @@ import metalScLogo from './assets/Metal-SC-removebg-preview.png';
 import {
   createPedido,
   deletePeca,
+  deleteAdminRevendedor,
+  deleteAdminUsuario,
+  fetchAdminRevendedores,
+  fetchAdminDashboard,
+  fetchAdminUsuarios,
   fetchPecas,
   fetchPecasByRevendedor,
   fetchPedidosByCliente,
-  fetchUsuarioPorEmail,
+  fetchPedidosByRevendedor,
+  confirmarPagamentoPedido,
+  baixarTaxasRevendedor,
+  ativarPremiumRevendedor,
+  desativarPremiumRevendedor,
+  loginUsuario,
   registerUsuario,
   savePeca,
   uploadPecaImagem,
@@ -45,6 +55,41 @@ const formatPrice = (value) =>
     currency: 'BRL'
   }).format(Number(value || 0));
 
+const formatDate = (value) => {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleDateString('pt-BR');
+};
+
+const WHATSAPP_RELEASE_URL =
+  process.env.REACT_APP_WHATSAPP_RELEASE_URL ||
+  "https://media.tenor.com/zGQLL-kwwEoAAAAM/cat-meme-pee.gif";
+
+const buildWhatsAppLink = (phone, message) => {
+  if (!phone) return '';
+  const digits = String(phone).replace(/\D/g, '');
+  if (!digits) return '';
+  let number = digits;
+  if (!digits.startsWith('55') && (digits.length === 10 || digits.length === 11)) {
+    number = `55${digits}`;
+  }
+  const text = message ? `?text=${encodeURIComponent(message)}` : '';
+  return `https://wa.me/${number}${text}`;
+};
+
+const getWhatsAppReleaseLink = (phone, message) => {
+  if (WHATSAPP_RELEASE_URL) {
+    return WHATSAPP_RELEASE_URL;
+  }
+  return buildWhatsAppLink(phone, message);
+};
+
+const toNumberOrNull = (value) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
 const resolveImageUrl = (url) => {
   if (!url) return '';
   if (url.startsWith('http://') || url.startsWith('https://')) return url;
@@ -55,6 +100,7 @@ const resolveImageUrl = (url) => {
 
 const AppProvider = ({ children }) => {
   const [user, setUser] = useState(null);
+  const [authToken, setAuthToken] = useState(null);
   const [cart, setCart] = useState([]);
   const [currentPage, setCurrentPage] = useState('home');
   const [selectedProduct, setSelectedProduct] = useState(null);
@@ -63,8 +109,22 @@ const AppProvider = ({ children }) => {
   useEffect(() => {
     const savedUser = localStorage.getItem('metal_user');
     const savedCart = localStorage.getItem('metal_cart');
+    const savedAuth = localStorage.getItem('metal_auth');
     if (savedUser) setUser(JSON.parse(savedUser));
-    if (savedCart) setCart(JSON.parse(savedCart));
+    if (savedCart) {
+      const parsed = JSON.parse(savedCart);
+      const normalized = Array.isArray(parsed)
+        ? parsed.map((item) => {
+            const maxEstoque = toNumberOrNull(item?.estoque);
+            if (maxEstoque !== null && item.quantidade > maxEstoque) {
+              return { ...item, quantidade: maxEstoque };
+            }
+            return item;
+          })
+        : [];
+      setCart(normalized);
+    }
+    if (savedAuth) setAuthToken(savedAuth);
   }, []);
 
   useEffect(() => {
@@ -76,16 +136,32 @@ const AppProvider = ({ children }) => {
   }, [user]);
 
   useEffect(() => {
+    if (authToken) {
+      localStorage.setItem('metal_auth', authToken);
+    } else {
+      localStorage.removeItem('metal_auth');
+    }
+  }, [authToken]);
+
+  useEffect(() => {
     localStorage.setItem('metal_cart', JSON.stringify(cart));
   }, [cart]);
 
-  const login = (userData) => {
+  const login = (userData, token) => {
     setUser(userData);
+    if (token) {
+      setAuthToken(token);
+    }
+    if (userData?.tipo === 'ADMINISTRADOR') {
+      setCurrentPage('admin');
+      return;
+    }
     setCurrentPage('home');
   };
 
   const logout = () => {
     setUser(null);
+    setAuthToken(null);
     setCart([]);
     setCurrentPage('home');
     setMobileMenuOpen(false);
@@ -99,14 +175,25 @@ const AppProvider = ({ children }) => {
   const addToCart = (product) => {
     setCart((prev) => {
       const existing = prev.find((item) => item.id === product.id);
+      const rawMaxEstoque =
+        toNumberOrNull(product?.estoque) ?? toNumberOrNull(existing?.estoque);
+      const maxEstoque = rawMaxEstoque ?? 1;
+      if (maxEstoque <= 0) {
+        alert('Sem estoque disponivel para esta peca.');
+        return prev;
+      }
       if (existing) {
+        if (maxEstoque !== null && existing.quantidade >= maxEstoque) {
+          alert('Quantidade maxima em estoque atingida.');
+          return prev;
+        }
         return prev.map((item) =>
           item.id === product.id
             ? { ...item, quantidade: item.quantidade + 1 }
             : item
         );
       }
-      return [...prev, { ...product, quantidade: 1 }];
+      return [...prev, { ...product, estoque: maxEstoque, quantidade: 1 }];
     });
   };
 
@@ -115,7 +202,13 @@ const AppProvider = ({ children }) => {
       prev
         .map((item) =>
           item.id === productId
-            ? { ...item, quantidade: Math.max(1, quantidade) }
+            ? {
+                ...item,
+                quantidade: Math.min(
+                  Math.max(1, quantidade),
+                  toNumberOrNull(item.estoque) ?? Number.MAX_SAFE_INTEGER
+                )
+              }
             : item
         )
         .filter((item) => item.quantidade > 0)
@@ -130,6 +223,7 @@ const AppProvider = ({ children }) => {
 
   const value = {
     user,
+    authToken,
     cart,
     currentPage,
     setCurrentPage,
@@ -187,6 +281,14 @@ const Header = () => {
     }
     setMobileMenuOpen(false);
   };
+  const handleUserClick = () => {
+    if (user?.tipo === 'ADMINISTRADOR') {
+      setCurrentPage('admin');
+    } else {
+      setCurrentPage('dashboard');
+    }
+    setMobileMenuOpen(false);
+  };
 
   return (
     <header className="header">
@@ -201,11 +303,13 @@ const Header = () => {
             Inicio
           </button>
           <button className="nav-link" onClick={() => { setCurrentPage('products'); setMobileMenuOpen(false); }}>
-            Pecas
+            Peças
           </button>
-          <button className="nav-link" onClick={handleAnnounceClick}>
-            Anunciar pecas
-          </button>
+          {(!user || user?.tipo === 'REVENDEDOR') && (
+            <button className="nav-link" onClick={handleAnnounceClick}>
+              Anunciar peças
+            </button>
+          )}
         </nav>
 
         <div className="header-actions">
@@ -214,7 +318,7 @@ const Header = () => {
             {cartCount > 0 && <span className="cart-badge">{cartCount}</span>}
           </button>
           {user ? (
-            <div className="user-pill" onClick={() => setCurrentPage('dashboard')}>
+            <div className="user-pill" onClick={handleUserClick}>
               <User size={18} />
               <span>{user.nome}</span>
             </div>
@@ -263,25 +367,27 @@ const HomePage = () => {
         <div className="container hero-content">
           <div className="hero-text">
             <div className="hero-pill">Classificados automotivos em SC</div>
-            <h1>Encontre a peca certa com rapidez e confianca.</h1>
+            <h1>Encontre a peça certa com rapidez e confiança.</h1>
             <p>
-              Compra e venda de pecas usadas com revendedores verificados, estoque real
+              Compra e venda de peças usadas com revendedores verificados, estoque real
               e entrega segura.
             </p>
             <div className="hero-actions">
               <button className="cta-btn" onClick={() => setCurrentPage('products')}>
-                Ver pecas
+                Ver peças
               </button>
-              <button className="secondary-btn" onClick={handleAnnounceClick}>
-                Anunciar peca
-              </button>
+              {(!user || user?.tipo === 'REVENDEDOR') && (
+                <button className="secondary-btn" onClick={handleAnnounceClick}>
+                  Anunciar peça
+                </button>
+              )}
             </div>
             <div className="hero-search">
               <div className="hero-search-field">
                 <Search size={18} />
                 <input
                   type="text"
-                  placeholder="Buscar peca, marca ou modelo"
+                  placeholder="Buscar peça, marca ou modelo"
                   onFocus={() => setCurrentPage('products')}
                 />
               </div>
@@ -289,7 +395,7 @@ const HomePage = () => {
                 <MapPin size={18} />
                 <input
                   type="text"
-                  placeholder="Cidade ou regiao"
+                  placeholder="Cidade ou região em SC"
                   onFocus={() => setCurrentPage('products')}
                 />
               </div>
@@ -300,7 +406,7 @@ const HomePage = () => {
           </div>
           <div className="hero-card">
             <Package size={44} />
-            <h3>Mais de 10 mil pecas em catalogo</h3>
+            <h3>Mais de 10 mil peças em catálogo</h3>
             <p>Atualizado diariamente por revendedores locais.</p>
           </div>
         </div>
@@ -315,18 +421,18 @@ const HomePage = () => {
           <div className="features-grid">
             <div className="feature-card">
               <div className="feature-icon">QA</div>
-              <h3>Pecas verificadas</h3>
+              <h3>Peças verificadas</h3>
               <p>Cadastro revisado para garantir qualidade.</p>
             </div>
             <div className="feature-card">
               <div className="feature-icon">OK</div>
-              <h3>Revendedores confiaveis</h3>
-              <p>Perfis avaliados e historico de vendas.</p>
+              <h3>Revendedores confiáveis</h3>
+              <p>Perfis avaliados e histórico de vendas.</p>
             </div>
             <div className="feature-card">
               <div className="feature-icon">FAST</div>
-              <h3>Entrega rapida</h3>
-              <p>Acompanhe o envio e receba com seguranca.</p>
+              <h3>Entrega rápida</h3>
+              <p>Acompanhe o envio e receba com segurança.</p>
             </div>
           </div>
         </div>
@@ -336,7 +442,7 @@ const HomePage = () => {
         <div className="container">
           <div className="section-title">
             <h2>Destaques da semana</h2>
-            <p>Selecionamos as pecas mais procuradas.</p>
+            <p>Selecionamos as peças mais procuradas.</p>
           </div>
           <div className="product-grid">
             {featuredProducts.map((product) => (
@@ -360,6 +466,8 @@ const ProductsPage = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedState, setSelectedState] = useState('');
+  const [selectedCity, setSelectedCity] = useState('');
+  const [selectedUf, setSelectedUf] = useState('');
   const [minPrice, setMinPrice] = useState('');
   const [maxPrice, setMaxPrice] = useState('');
   const [loading, setLoading] = useState(true);
@@ -389,6 +497,12 @@ const ProductsPage = () => {
         product.descricao?.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesCategory = !selectedCategory || product.categoria === selectedCategory;
       const matchesState = !selectedState || product.estado === selectedState;
+      const matchesCity =
+        !selectedCity ||
+        product.endereco?.cidade?.toLowerCase().includes(selectedCity.toLowerCase());
+      const matchesUf =
+        !selectedUf ||
+        product.endereco?.estado?.toLowerCase().includes(selectedUf.toLowerCase());
       const matchesMinPrice =
         !minPrice || Number(product.preco) >= Number(minPrice);
       const matchesMaxPrice =
@@ -398,17 +512,19 @@ const ProductsPage = () => {
         matchesQuery &&
         matchesCategory &&
         matchesState &&
+        matchesCity &&
+        matchesUf &&
         matchesMinPrice &&
         matchesMaxPrice
       );
     });
-  }, [products, searchQuery, selectedCategory, selectedState, minPrice, maxPrice]);
+  }, [products, searchQuery, selectedCategory, selectedState, selectedCity, selectedUf, minPrice, maxPrice]);
 
   return (
     <div className="products-page container">
       <div className="page-header">
         <div>
-          <h1>Catalogo de pecas</h1>
+          <h1>Catálogo de peças</h1>
           <p>{filteredProducts.length} resultados encontrados</p>
         </div>
         <button className="ghost-btn" onClick={() => setShowFilters((prev) => !prev)}>
@@ -439,13 +555,31 @@ const ProductsPage = () => {
           </select>
         </div>
         <div className="filter-group">
-          <label>Estado</label>
+          <label>Estado da peÃ§a</label>
           <select value={selectedState} onChange={(e) => setSelectedState(e.target.value)}>
             <option value="">Todos</option>
             {states.map((state) => (
               <option key={state} value={state}>{state}</option>
             ))}
           </select>
+        </div>
+        <div className="filter-group">
+          <label>Cidade</label>
+          <input
+            type="text"
+            value={selectedCity}
+            onChange={(e) => setSelectedCity(e.target.value)}
+            placeholder="Ex: Florianopolis"
+          />
+        </div>
+        <div className="filter-group">
+          <label>Estado (UF)</label>
+          <input
+            type="text"
+            value={selectedUf}
+            onChange={(e) => setSelectedUf(e.target.value)}
+            placeholder="Ex: SC"
+          />
         </div>
         <div className="filter-group">
           <label>Preco minimo</label>
@@ -470,7 +604,7 @@ const ProductsPage = () => {
       </div>
 
       {loading ? (
-        <div className="empty-state">Carregando pecas...</div>
+        <div className="empty-state">Carregando peças...</div>
       ) : (
         <div className="product-grid">
           {filteredProducts.map((product) => (
@@ -494,9 +628,9 @@ const ProductDetailPage = () => {
     return (
       <div className="container empty-state">
         <Package size={40} />
-        <h2>Selecione uma peca no catalogo.</h2>
+        <h2>Selecione uma peça no catálogo.</h2>
         <button className="cta-btn" onClick={() => setCurrentPage('products')}>
-          Ver catalogo
+          Ver catálogo
         </button>
       </div>
     );
@@ -504,6 +638,8 @@ const ProductDetailPage = () => {
 
   const images = (selectedProduct.imagens || []).map(resolveImageUrl);
   const hasImages = images.length > 0;
+  const estoqueValue = toNumberOrNull(selectedProduct?.estoque);
+  const outOfStock = estoqueValue !== null && estoqueValue <= 0;
 
   const goPrev = () => {
     setCurrentImageIndex((prev) => (prev === 0 ? images.length - 1 : prev - 1));
@@ -516,7 +652,7 @@ const ProductDetailPage = () => {
   return (
     <div className="container detail-page">
       <button className="ghost-btn" onClick={() => setCurrentPage('products')}>
-        Voltar ao catalogo
+        Voltar ao catálogo
       </button>
       <div className="detail-card">
         <div className="detail-image">
@@ -559,11 +695,20 @@ const ProductDetailPage = () => {
           <p className="detail-meta">
             {selectedProduct.marca || 'Marca nao informada'} � {selectedProduct.categoria}
           </p>
+          {selectedProduct.endereco?.cidade && (
+            <p className="detail-meta">
+              {selectedProduct.endereco.cidade}{selectedProduct.endereco.estado ? ` - ${selectedProduct.endereco.estado}` : ''}
+            </p>
+          )}
           <p className="detail-desc">{selectedProduct.descricao || 'Sem descricao.'}</p>
           <div className="detail-price">{formatPrice(selectedProduct.preco)}</div>
           <div className="detail-actions">
-            <button className="cta-btn" onClick={() => addToCart(selectedProduct)}>
-              Adicionar ao carrinho
+            <button
+              className="cta-btn"
+              onClick={() => addToCart(selectedProduct)}
+              disabled={outOfStock}
+            >
+              {outOfStock ? 'Sem estoque' : 'Adicionar ao carrinho'}
             </button>
             <button className="secondary-btn" onClick={() => setCurrentPage('cart')}>
               Ir para o carrinho
@@ -623,7 +768,7 @@ const CartPage = () => {
       setCurrentPage('dashboard');
     } catch (err) {
       console.error(err);
-      alert('Erro ao processar pedido');
+      alert(err.message || 'Erro ao processar pedido');
     } finally {
       setLoading(false);
     }
@@ -633,9 +778,9 @@ const CartPage = () => {
     return (
       <div className="container empty-state">
         <ShoppingCart size={48} />
-        <h2>Seu carrinho esta vazio</h2>
+        <h2>Seu carrinho está vazio</h2>
         <button className="cta-btn" onClick={() => setCurrentPage('products')}>
-          Ver pecas
+          Ver peças
         </button>
       </div>
     );
@@ -657,6 +802,7 @@ const CartPage = () => {
                 <input
                   type="number"
                   min="1"
+                  max={toNumberOrNull(item.estoque) ?? undefined}
                   value={item.quantidade}
                   onChange={(e) => updateCartQty(item.id, Number(e.target.value))}
                 />
@@ -694,9 +840,15 @@ const LoginPage = () => {
     setLoading(true);
 
     try {
-      const user = await fetchUsuarioPorEmail(email);
-      login(user);
-      setCurrentPage('home');
+      if (!senha) {
+        setError('Senha obrigatoria');
+        setLoading(false);
+        return;
+      }
+      const user = await loginUsuario(email, senha);
+      const token = btoa(`${email}:${senha}`);
+      login(user, token);
+      setCurrentPage(user?.tipo === 'ADMINISTRADOR' ? 'admin' : 'home');
     } catch (err) {
       setError('Email ou senha invalidos');
     } finally {
@@ -708,7 +860,7 @@ const LoginPage = () => {
     <div className="container auth-page">
       <div className="auth-card">
         <h2>Entrar</h2>
-        <p>Apenas o email e validado no momento.</p>
+        <p>Use o email e a senha cadastrados.</p>
         {error && <div className="error-message">{error}</div>}
         <form onSubmit={handleSubmit} className="auth-form">
           <div className="form-group">
@@ -911,6 +1063,10 @@ const DashboardPage = () => {
     );
   }
 
+  if (user.tipo === 'ADMINISTRADOR') {
+    return <AdminPage />;
+  }
+
   return (
     <div className="container dashboard-page">
       <div className="dashboard-header">
@@ -950,7 +1106,25 @@ const ClienteDashboard = () => {
             <div key={pedido.id} className="order-card">
               <div>
                 <strong>Pedido #{pedido.id?.substring(0, 8)}</strong>
-                <p>{new Date(pedido.dataCriacao).toLocaleDateString('pt-BR')}</p>
+                <p>{formatDate(pedido.dataCriacao)}</p>
+                {pedido.status === 'CONFIRMADO' &&
+                (pedido.revendedorTelefone || WHATSAPP_RELEASE_URL) ? (
+                  <a
+                    className="ghost-btn outline small"
+                    href={getWhatsAppReleaseLink(
+                      pedido.revendedorTelefone,
+                      `Ola! Estou falando sobre o pedido ${pedido.id?.substring(0, 8)}.`
+                    )}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Liberar WhatsApp
+                  </a>
+                ) : (
+                  <span className="meta-note">
+                    WhatsApp liberado após pagamento confirmado
+                  </span>
+                )}
               </div>
               <div className="order-status">
                 <span>{pedido.status}</span>
@@ -967,6 +1141,9 @@ const ClienteDashboard = () => {
 const RevendedorDashboard = () => {
   const { user } = useApp();
   const [pecas, setPecas] = useState([]);
+  const [pedidos, setPedidos] = useState([]);
+  const [loadingPedidos, setLoadingPedidos] = useState(false);
+  const [confirmingId, setConfirmingId] = useState(null);
   const [editingPeca, setEditingPeca] = useState(null);
   const [formData, setFormData] = useState({
     nome: '',
@@ -977,7 +1154,16 @@ const RevendedorDashboard = () => {
     ano: '',
     marca: '',
     modeloVeiculo: '',
-    estoque: 1
+    estoque: 1,
+    endereco: {
+      rua: '',
+      numero: '',
+      complemento: '',
+      bairro: '',
+      cidade: '',
+      estado: '',
+      cep: ''
+    }
   });
   const [imageFiles, setImageFiles] = useState([]);
   const [existingImages, setExistingImages] = useState([]);
@@ -993,8 +1179,22 @@ const RevendedorDashboard = () => {
     }
   };
 
+  const loadPedidos = async () => {
+    if (!user) return;
+    setLoadingPedidos(true);
+    try {
+      const data = await fetchPedidosByRevendedor(user.id);
+      setPedidos(data || []);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingPedidos(false);
+    }
+  };
+
   useEffect(() => {
     loadPecas();
+    loadPedidos();
   }, [user]);
 
   useEffect(() => {
@@ -1008,7 +1208,16 @@ const RevendedorDashboard = () => {
         ano: editingPeca.ano || '',
         marca: editingPeca.marca || '',
         modeloVeiculo: editingPeca.modeloVeiculo || '',
-        estoque: editingPeca.estoque || 1
+        estoque: editingPeca.estoque || 1,
+        endereco: {
+          rua: editingPeca.endereco?.rua || '',
+          numero: editingPeca.endereco?.numero || '',
+          complemento: editingPeca.endereco?.complemento || '',
+          bairro: editingPeca.endereco?.bairro || '',
+          cidade: editingPeca.endereco?.cidade || '',
+          estado: editingPeca.endereco?.estado || '',
+          cep: editingPeca.endereco?.cep || ''
+        }
       });
       setExistingImages(editingPeca.imagens || []);
     } else {
@@ -1021,7 +1230,16 @@ const RevendedorDashboard = () => {
         ano: '',
         marca: '',
         modeloVeiculo: '',
-        estoque: 1
+        estoque: 1,
+        endereco: {
+          rua: '',
+          numero: '',
+          complemento: '',
+          bairro: '',
+          cidade: '',
+          estado: '',
+          cep: ''
+        }
       });
       setExistingImages([]);
     }
@@ -1068,6 +1286,14 @@ const RevendedorDashboard = () => {
     setImageFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const handleEnderecoChange = (event) => {
+    const { name, value } = event.target;
+    setFormData((prev) => ({
+      ...prev,
+      endereco: { ...prev.endereco, [name]: value }
+    }));
+  };
+
   const handleSubmit = async (event) => {
     event.preventDefault();
 
@@ -1104,17 +1330,33 @@ const RevendedorDashboard = () => {
     }
   };
 
+  const handleConfirmarPagamento = async (pedidoId) => {
+    if (!pedidoId) return;
+    if (!window.confirm('Confirmar pagamento deste pedido?')) return;
+    setConfirmingId(pedidoId);
+    try {
+      await confirmarPagamentoPedido(pedidoId);
+      await loadPedidos();
+      alert('Pagamento confirmado.');
+    } catch (err) {
+      console.error(err);
+      alert(err.message || 'Erro ao confirmar pagamento');
+    } finally {
+      setConfirmingId(null);
+    }
+  };
+
   return (
     <div className="dashboard-grid">
       <div className="panel">
         <div className="panel-header">
-          <h2>Minhas pecas</h2>
+          <h2>Minhas peças</h2>
           <button className="ghost-btn" onClick={() => setEditingPeca(null)}>
-            <Plus size={16} /> Nova peca
+            <Plus size={16} /> Nova peça
           </button>
         </div>
         {pecas.length === 0 ? (
-          <p>Nenhuma peca cadastrada.</p>
+          <p>Nenhuma peça cadastrada.</p>
         ) : (
           <div className="table">
             {pecas.map((peca) => (
@@ -1134,6 +1376,50 @@ const RevendedorDashboard = () => {
                 </div>
               </div>
             ))}
+          </div>
+        )}
+      </div>
+
+      <div className="panel">
+        <div className="panel-header">
+          <h2>Pedidos recebidos</h2>
+          <button className="ghost-btn" onClick={loadPedidos} disabled={loadingPedidos}>
+            {loadingPedidos ? 'Atualizando...' : 'Atualizar'}
+          </button>
+        </div>
+        {loadingPedidos ? (
+          <p>Carregando pedidos...</p>
+        ) : pedidos.length === 0 ? (
+          <p>Nenhum pedido recebido.</p>
+        ) : (
+          <div className="order-list">
+            {pedidos.map((pedido) => {
+              const isPendente = pedido.status === 'PENDENTE';
+              return (
+                <div key={pedido.id} className="order-card">
+                  <div>
+                    <strong>Pedido #{pedido.id?.substring(0, 8)}</strong>
+                    <p>Cliente: {pedido.clienteNome || 'Cliente'}</p>
+                    <p>{formatDate(pedido.dataCriacao)}</p>
+                  </div>
+                  <div className="order-status">
+                    <span>{pedido.status}</span>
+                    <strong>{formatPrice(pedido.valorTotal)}</strong>
+                    {isPendente ? (
+                      <button
+                        className="cta-btn small"
+                        onClick={() => handleConfirmarPagamento(pedido.id)}
+                        disabled={confirmingId === pedido.id}
+                      >
+                        {confirmingId === pedido.id ? 'Confirmando...' : 'Confirmar pagamento'}
+                      </button>
+                    ) : (
+                      <span className="meta-note">Pagamento confirmado</span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
@@ -1231,14 +1517,70 @@ const RevendedorDashboard = () => {
             />
           </div>
           <div className="form-group">
-            <label>Fotos da peca</label>
+            <label>Rua</label>
+            <input
+              name="rua"
+              value={formData.endereco.rua}
+              onChange={handleEnderecoChange}
+            />
+          </div>
+          <div className="form-group">
+            <label>Numero</label>
+            <input
+              name="numero"
+              value={formData.endereco.numero}
+              onChange={handleEnderecoChange}
+            />
+          </div>
+          <div className="form-group">
+            <label>Bairro</label>
+            <input
+              name="bairro"
+              value={formData.endereco.bairro}
+              onChange={handleEnderecoChange}
+            />
+          </div>
+          <div className="form-group">
+            <label>Cidade</label>
+            <input
+              name="cidade"
+              value={formData.endereco.cidade}
+              onChange={handleEnderecoChange}
+            />
+          </div>
+          <div className="form-group">
+            <label>Estado (UF)</label>
+            <input
+              name="estado"
+              value={formData.endereco.estado}
+              onChange={handleEnderecoChange}
+            />
+          </div>
+          <div className="form-group">
+            <label>CEP</label>
+            <input
+              name="cep"
+              value={formData.endereco.cep}
+              onChange={handleEnderecoChange}
+            />
+          </div>
+          <div className="form-group">
+            <label>Complemento</label>
+            <input
+              name="complemento"
+              value={formData.endereco.complemento}
+              onChange={handleEnderecoChange}
+            />
+          </div>
+          <div className="form-group">
+            <label>Fotos da peça</label>
             <input type="file" accept="image/*" multiple onChange={handleFilesChange} />
-            <small>Maximo de 3 imagens por peca.</small>
+            <small>Máximo de 3 imagens por peça.</small>
             {(existingImages.length > 0 || imageFiles.length > 0) && (
               <div className="image-list">
                 {existingImages.map((url) => (
                   <div key={url} className="image-chip">
-                    <img src={resolveImageUrl(url)} alt="Imagem da peca" />
+                    <img src={resolveImageUrl(url)} alt="Imagem da peça" />
                     <button
                       type="button"
                       className="icon-btn"
@@ -1264,22 +1606,319 @@ const RevendedorDashboard = () => {
             )}
           </div>
           <button className="cta-btn" type="submit">
-            {editingPeca ? 'Salvar alteracoes' : 'Cadastrar peca'}
+            {editingPeca ? 'Salvar alterações' : 'Cadastrar peça'}
           </button>
         </form>
       </div>
     </div>
   );
 };
-const AdminPage = () => (
-  <div className="container empty-state">
-    <Package size={40} />
-    <h2>Painel administrativo em construcao.</h2>
-  </div>
-);
+const AdminPage = () => {
+  const { user, setCurrentPage, logout } = useApp();
+  const [dashboard, setDashboard] = useState(null);
+  const [usuarios, setUsuarios] = useState([]);
+  const [revendedores, setRevendedores] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  const loadData = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const [dash, users, sellers] = await Promise.all([
+        fetchAdminDashboard(),
+        fetchAdminUsuarios(),
+        fetchAdminRevendedores()
+      ]);
+      setDashboard(dash);
+      setUsuarios(users || []);
+      setRevendedores(sellers || []);
+    } catch (err) {
+      setError(err.message || 'Erro ao carregar dados');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (user?.tipo === 'ADMINISTRADOR') {
+      loadData();
+    }
+  }, [user]);
+
+  if (!user) {
+    return (
+      <div className="container empty-state">
+        <h2>Faca login para acessar o painel administrativo</h2>
+        <button className="cta-btn" onClick={() => setCurrentPage('login')}>
+          Entrar
+        </button>
+      </div>
+    );
+  }
+
+  if (user.tipo !== 'ADMINISTRADOR') {
+    return (
+      <div className="container empty-state">
+        <h2>Acesso restrito para administradores.</h2>
+      </div>
+    );
+  }
+
+  const clientes = usuarios.filter((item) => item.tipo === 'CLIENTE');
+  const administradores = usuarios.filter((item) => item.tipo === 'ADMINISTRADOR');
+
+  const totalUsuarios = dashboard?.usuarios?.total ?? usuarios.length;
+  const totalPecas = dashboard?.pecas?.total ?? 0;
+  const totalVendas = dashboard?.vendas?.total ?? 0;
+
+  const handleRemoveUsuario = async (usuario) => {
+    if (!usuario?.id) return;
+    if (!window.confirm(`Remover o usuario ${usuario.nome}?`)) return;
+    try {
+      await deleteAdminUsuario(usuario.id);
+      loadData();
+    } catch (err) {
+      alert(err.message || 'Erro ao remover usuario');
+    }
+  };
+
+  const handleRemoveRevendedor = async (revendedor) => {
+    if (!revendedor?.id) return;
+    if (!window.confirm(`Remover o revendedor ${revendedor.nome}?`)) return;
+    try {
+      await deleteAdminRevendedor(revendedor.id);
+      loadData();
+    } catch (err) {
+      alert(err.message || 'Erro ao remover revendedor');
+    }
+  };
+
+  const handleBaixarTaxas = async (revendedor, zerar = false) => {
+    if (!revendedor?.id) return;
+    let valor = null;
+    if (!zerar) {
+      const entrada = window.prompt(
+        'Valor pago pelo revendedor (ex: 50.00). Deixe vazio para zerar.',
+        ''
+      );
+      if (entrada === null) return;
+      const texto = entrada.trim();
+      if (texto.length > 0) {
+        const parsed = Number(texto.replace(',', '.'));
+        if (!Number.isFinite(parsed) || parsed <= 0) {
+          alert('Valor invalido.');
+          return;
+        }
+        valor = parsed;
+      }
+    } else if (!window.confirm(`Zerar todas as taxas de ${revendedor.nome}?`)) {
+      return;
+    }
+
+    try {
+      await baixarTaxasRevendedor(revendedor.id, valor);
+      loadData();
+    } catch (err) {
+      alert(err.message || 'Erro ao baixar taxas');
+    }
+  };
+
+  const handleAtivarPremium = async (revendedor) => {
+    if (!revendedor?.id) return;
+    const entrada = window.prompt('Quantos dias de premium?', '30');
+    if (entrada === null) return;
+    const dias = Number(entrada);
+    if (!Number.isFinite(dias) || dias <= 0) {
+      alert('Dias invalidos.');
+      return;
+    }
+    try {
+      await ativarPremiumRevendedor(revendedor.id, Math.round(dias));
+      loadData();
+    } catch (err) {
+      alert(err.message || 'Erro ao ativar premium');
+    }
+  };
+
+  const handleDesativarPremium = async (revendedor) => {
+    if (!revendedor?.id) return;
+    if (!window.confirm(`Desativar premium de ${revendedor.nome}?`)) return;
+    try {
+      await desativarPremiumRevendedor(revendedor.id);
+      loadData();
+    } catch (err) {
+      alert(err.message || 'Erro ao desativar premium');
+    }
+  };
+
+  return (
+    <div className="container dashboard-page admin-page">
+      <div className="dashboard-header">
+        <div>
+          <h1>Painel administrativo</h1>
+          <p>Gerencie usuarios e revendedores da plataforma.</p>
+        </div>
+        <div className="table-actions">
+          <button className="ghost-btn" onClick={loadData} disabled={loading}>
+            {loading ? 'Atualizando...' : 'Atualizar'}
+          </button>
+          <button className="ghost-btn" onClick={logout}>
+            <LogOut size={16} /> Sair
+          </button>
+        </div>
+      </div>
+
+      {error && <div className="error-message">{error}</div>}
+
+      <div className="dashboard-grid admin-stats">
+        <div className="panel stat-card">
+          <h3>Usuarios</h3>
+          <div className="stat-value">{totalUsuarios}</div>
+          <p>
+            Clientes: {clientes.length} | Revendedores: {revendedores.length}
+          </p>
+        </div>
+        <div className="panel stat-card">
+          <h3>Revendedores</h3>
+          <div className="stat-value">{revendedores.length}</div>
+          <p>Administradores: {administradores.length}</p>
+        </div>
+        <div className="panel stat-card">
+          <h3>Pecas</h3>
+          <div className="stat-value">{totalPecas}</div>
+          <p>Vendas: {totalVendas}</p>
+        </div>
+      </div>
+
+      <div className="dashboard-grid admin-lists">
+        <div className="panel">
+          <div className="panel-header">
+            <h2>Usuarios (Clientes)</h2>
+          </div>
+          {loading ? (
+            <p>Carregando usuarios...</p>
+          ) : clientes.length === 0 ? (
+            <p>Nenhum cliente cadastrado.</p>
+          ) : (
+            <div className="table">
+              {clientes.map((cliente) => (
+                <div key={cliente.id} className="table-row">
+                  <div>
+                    <strong>{cliente.nome}</strong>
+                    <p>{cliente.email}</p>
+                    <span className={`status-pill ${cliente.ativo ? 'active' : 'inactive'}`}>
+                      {cliente.ativo ? 'Ativo' : 'Inativo'}
+                    </span>
+                  </div>
+                  <div className="table-actions">
+                    <button
+                      className="icon-btn"
+                      onClick={() => handleRemoveUsuario(cliente)}
+                      disabled={!cliente.ativo}
+                      title="Remover"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="panel">
+          <div className="panel-header">
+            <h2>Revendedores</h2>
+          </div>
+          {loading ? (
+            <p>Carregando revendedores...</p>
+          ) : revendedores.length === 0 ? (
+            <p>Nenhum revendedor cadastrado.</p>
+          ) : (
+            <div className="table">
+              {revendedores.map((revendedor) => {
+                const saldoTaxas = toNumberOrNull(revendedor?.saldoTaxas) ?? 0;
+                const premiumAte = revendedor?.premiumAte ? new Date(revendedor.premiumAte) : null;
+                const premiumAtivo =
+                  Boolean(revendedor?.premiumAtivo) &&
+                  (!premiumAte || premiumAte.getTime() >= Date.now());
+                const premiumLabel = premiumAtivo
+                  ? `Premium ativo${premiumAte ? ` ate ${formatDate(premiumAte)}` : ''}`
+                  : 'Premium inativo';
+
+                return (
+                  <div key={revendedor.id} className="table-row">
+                    <div>
+                      <strong>{revendedor.nome}</strong>
+                      <p>{revendedor.email}</p>
+                      <div className="meta-line">
+                        <span
+                          className={`status-pill ${revendedor.ativo ? 'active' : 'inactive'}`}
+                        >
+                          {revendedor.ativo ? 'Ativo' : 'Inativo'}
+                        </span>
+                        <span className={`status-pill ${premiumAtivo ? 'active' : 'inactive'}`}>
+                          {premiumLabel}
+                        </span>
+                        <span className="meta-chip">
+                          Taxas: {formatPrice(saldoTaxas)}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="table-actions admin-actions">
+                      <button
+                        className="ghost-btn small"
+                        onClick={() => handleBaixarTaxas(revendedor)}
+                        title="Dar baixa parcial"
+                      >
+                        Baixar taxa
+                      </button>
+                      <button
+                        className="ghost-btn small"
+                        onClick={() => handleBaixarTaxas(revendedor, true)}
+                        title="Zerar taxas"
+                      >
+                        Zerar taxa
+                      </button>
+                      <button
+                        className="cta-btn small"
+                        onClick={() => handleAtivarPremium(revendedor)}
+                        title="Ativar premium"
+                      >
+                        Premium
+                      </button>
+                      <button
+                        className="ghost-btn small"
+                        onClick={() => handleDesativarPremium(revendedor)}
+                        title="Desativar premium"
+                      >
+                        Cancelar premium
+                      </button>
+                      <button
+                        className="icon-btn"
+                        onClick={() => handleRemoveRevendedor(revendedor)}
+                        disabled={!revendedor.ativo}
+                        title="Remover"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const ProductCard = ({ product, onView, onAdd }) => {
   const imageCount = product.imagens?.length || 0;
+  const estoqueValue = toNumberOrNull(product?.estoque);
+  const outOfStock = estoqueValue !== null && estoqueValue <= 0;
   return (
   <div className="product-card">
     <div className="product-media" onClick={() => onView(product)}>
@@ -1297,13 +1936,20 @@ const ProductCard = ({ product, onView, onAdd }) => {
     <div className="product-body">
       <h3>{product.nome}</h3>
       <p>{product.marca || 'Marca nao informada'}</p>
+      {product.endereco?.cidade && (
+        <p>{product.endereco.cidade}{product.endereco.estado ? ` - ${product.endereco.estado}` : ''}</p>
+      )}
       <span className="product-price">{formatPrice(product.preco)}</span>
       <div className="product-actions">
         <button className="ghost-btn" onClick={() => onView(product)}>
           Ver detalhes
         </button>
-        <button className="cta-btn small" onClick={() => onAdd(product)}>
-          Adicionar
+        <button
+          className="cta-btn small"
+          onClick={() => onAdd(product)}
+          disabled={outOfStock}
+        >
+          {outOfStock ? 'Sem estoque' : 'Adicionar'}
         </button>
       </div>
     </div>
@@ -1319,7 +1965,7 @@ const Footer = () => (
           <img src={metalScLogo} alt="Metal-SC" className="logo-icon" />
           <span>Metal-SC</span>
         </div>
-        <p>Sua fonte de pecas automotivas usadas em Santa Catarina.</p>
+        <p>Sua fonte de peças automotivas usadas em Santa Catarina.</p>
       </div>
       <div>
         <h4>Contato</h4>
@@ -1334,3 +1980,5 @@ const Footer = () => (
 );
 
 export default App;
+
+

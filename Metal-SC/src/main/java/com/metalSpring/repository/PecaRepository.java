@@ -12,6 +12,9 @@ import java.util.List;
 @Repository
 public interface PecaRepository extends JpaRepository<Peca, String> {
 
+    @Query("SELECT p FROM Peca p LEFT JOIN p.vendedor v ORDER BY v.premiumAtivo DESC, p.id DESC")
+    List<Peca> findAllOrderByPremium();
+
     // Busca por nome
     List<Peca> findByNomeContainingIgnoreCase(String nome);
 
@@ -35,6 +38,11 @@ public interface PecaRepository extends JpaRepository<Peca, String> {
 
     // Busca por revendedor
     List<Peca> findByVendedorId(String vendedorId);
+
+    // Busca por endereco (localizacao)
+    List<Peca> findByEnderecoCidadeIgnoreCase(String cidade);
+    List<Peca> findByEnderecoEstadoIgnoreCase(String estado);
+    List<Peca> findByEnderecoCidadeIgnoreCaseAndEnderecoEstadoIgnoreCase(String cidade, String estado);
 
     // Busca por faixa de preço
     List<Peca> findByPrecoBetween(double precoMin, double precoMax);

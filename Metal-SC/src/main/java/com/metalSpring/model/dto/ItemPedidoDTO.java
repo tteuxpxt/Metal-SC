@@ -25,7 +25,6 @@ public class ItemPedidoDTO {
 
     public String getPedidoId() { return pedidoid; }
     public void setPedidoId(String pedidoid) { this.pedidoid = pedidoid; }
-    public void setpedidoId(String pedidoid) { this.pedidoid = pedidoid; }
 
     public String getPecaId() { return pecaId; }
     public void setPecaId(String pecaId) { this.pecaId = pecaId; }

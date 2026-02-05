@@ -6,6 +6,7 @@ import com.metalSpring.model.entity.*;
 import com.metalSpring.model.enums.PedidoStatus;
 import com.metalSpring.repository.*;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,6 +31,9 @@ public class PedidoService {
 
     @Autowired
     private ItemPedidoRepository itemPedidoRepository;
+
+    @Value("${app.taxa.percent:0.05}")
+    private double taxaPercentual;
 
     public List<Pedido> listarTodos() {
         return pedidoRepository.findAll();
@@ -145,6 +149,22 @@ public class PedidoService {
 
         Pedido pedido = pedidoOpt.get();
         pedido.confirmarPagamento();
+        pedido.setDataPagamento(LocalDateTime.now());
+
+        if (pedido.getTaxaPlataforma() == null) {
+            double taxa = pedido.getValorTotal() * taxaPercentual;
+            taxa = Math.round(taxa * 100.0) / 100.0;
+            pedido.setTaxaPlataforma(taxa);
+            pedido.setValorLiquidoRevendedor(pedido.getValorTotal() - taxa);
+            pedido.setTaxaPaga(false);
+
+            Revendedor vendedor = pedido.getVendedor();
+            if (vendedor != null) {
+                Double saldoAtual = vendedor.getSaldoTaxas() != null ? vendedor.getSaldoTaxas() : 0.0;
+                vendedor.setSaldoTaxas(saldoAtual + taxa);
+                revendedorRepository.save(vendedor);
+            }
+        }
 
         // Atualizar estoque das peças
         for (ItemPedido item : pedido.getItens()) {
@@ -203,3 +223,6 @@ public class PedidoService {
         return criar(clienteId, revendedorId, endereco);
     }
 }
+
+
+

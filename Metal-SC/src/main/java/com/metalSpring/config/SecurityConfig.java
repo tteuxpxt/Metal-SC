@@ -2,8 +2,12 @@ package com.metalSpring.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
@@ -20,47 +24,64 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-                // 1. CONFIGURAÇÃO DE CORS (Permite o React acessar o Java)
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-
-                // 2. DESABILITAR CSRF (Necessário para APIs REST e H2 Console)
                 .csrf(csrf -> csrf.disable())
-
-                // 3. LIBERAR FRAMES (Crucial para o H2 Console aparecer)
-                .headers(headers -> headers.frameOptions(frame -> frame.disable()))
-
-                // 4. PERMITIR TUDO - SEM RESTRIÇÕES (APENAS PARA DESENVOLVIMENTO!)
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .anyRequest().permitAll()  // PERMITE TUDO SEM AUTENTICAÇÃO
-                );
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
+                        .requestMatchers("/error", "/uploads/**").permitAll()
+                        .requestMatchers(HttpMethod.GET,
+                                "/api/pecas/**",
+                                "/api/avaliacoes/**",
+                                "/api/revendedores/**"
+                        ).permitAll()
+                        .requestMatchers(HttpMethod.POST,
+                                "/api/clientes",
+                                "/api/revendedores",
+                                "/api/usuarios"
+                        ).permitAll()
+                        .requestMatchers("/api/admin/**").hasRole("ADMINISTRADOR")
+                        .anyRequest().authenticated()
+                )
+                .httpBasic(Customizer.withDefaults());
 
         return http.build();
     }
 
-    // ⚠️ ATENÇÃO: NoOpPasswordEncoder está DEPRECATED e é INSEGURO!
-    // Use apenas para desenvolvimento/testes. Em produção use BCrypt!
-    @SuppressWarnings("deprecation")
     @Bean
     public PasswordEncoder passwordEncoder() {
-        // Isso força o Spring a usar senhas em texto puro (Só para desenvolvimento!)
-        return org.springframework.security.crypto.password.NoOpPasswordEncoder.getInstance();
+        BCryptPasswordEncoder bcrypt = new BCryptPasswordEncoder();
+
+        return new PasswordEncoder() {
+            @Override
+            public String encode(CharSequence rawPassword) {
+                return bcrypt.encode(rawPassword);
+            }
+
+            @Override
+            public boolean matches(CharSequence rawPassword, String encodedPassword) {
+                if (encodedPassword == null) {
+                    return false;
+                }
+
+                if (encodedPassword.startsWith("$2a$")
+                        || encodedPassword.startsWith("$2b$")
+                        || encodedPassword.startsWith("$2y$")) {
+                    return bcrypt.matches(rawPassword, encodedPassword);
+                }
+
+                return rawPassword.toString().equals(encodedPassword);
+            }
+        };
     }
 
-    // Configuração Detalhada do CORS (React <-> Java)
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-
-        // Permite requisições de QUALQUER ORIGEM (APENAS DESENVOLVIMENTO!)
         configuration.setAllowedOriginPatterns(List.of("*"));
-
-        // Permite os métodos HTTP comuns
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
-
-        // Permite todos os cabeçalhos
         configuration.setAllowedHeaders(List.of("*"));
-
-        // Permite enviar cookies/credenciais
         configuration.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

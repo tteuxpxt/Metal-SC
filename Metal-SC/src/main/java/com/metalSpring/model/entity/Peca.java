@@ -3,6 +3,7 @@ package com.metalSpring.model.entity;
 import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.metalSpring.model.embeddable.Endereco;
 import com.metalSpring.model.enums.PecaEstado;
 import jakarta.persistence.*;
 import java.util.ArrayList;
@@ -44,6 +45,18 @@ public class Peca {
 
     @Column(name = "modelo_veiculo")
     private String modeloVeiculo;
+
+    @Embedded
+    @AttributeOverrides({
+            @AttributeOverride(name = "rua", column = @Column(name = "endereco_rua")),
+            @AttributeOverride(name = "numero", column = @Column(name = "endereco_numero")),
+            @AttributeOverride(name = "complemento", column = @Column(name = "endereco_complemento")),
+            @AttributeOverride(name = "bairro", column = @Column(name = "endereco_bairro")),
+            @AttributeOverride(name = "cidade", column = @Column(name = "endereco_cidade")),
+            @AttributeOverride(name = "estado", column = @Column(name = "endereco_estado")),
+            @AttributeOverride(name = "cep", column = @Column(name = "endereco_cep"))
+    })
+    private Endereco endereco;
 
     // ✅ JsonBackReference: Evita loop infinito na serialização
     // Esta é a parte "filha" da relação - não será serializada quando vindo do Revendedor
@@ -185,6 +198,14 @@ public class Peca {
 
     public void setModeloVeiculo(String modeloVeiculo) {
         this.modeloVeiculo = modeloVeiculo;
+    }
+
+    public Endereco getEndereco() {
+        return endereco;
+    }
+
+    public void setEndereco(Endereco endereco) {
+        this.endereco = endereco;
     }
 
     public Revendedor getVendedor() {

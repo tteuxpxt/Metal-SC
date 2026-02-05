@@ -10,6 +10,7 @@ public class PedidoDTO {
     private String clienteNome;
     private String revendedorId;
     private String revendedorNome;
+    private String revendedorTelefone;
     private List<ItemPedidoDTO> itens;
     private Double valorTotal;
     private PedidoStatus status;
@@ -44,6 +45,9 @@ public class PedidoDTO {
 
     public String getRevendedorNome() { return revendedorNome; }
     public void setRevendedorNome(String revendedorNome) { this.revendedorNome = revendedorNome; }
+
+    public String getRevendedorTelefone() { return revendedorTelefone; }
+    public void setRevendedorTelefone(String revendedorTelefone) { this.revendedorTelefone = revendedorTelefone; }
 
     public List<ItemPedidoDTO> getItens() { return itens; }
     public void setItens(List<ItemPedidoDTO> itens) { this.itens = itens; }

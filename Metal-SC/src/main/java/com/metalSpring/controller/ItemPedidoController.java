@@ -20,36 +20,31 @@ public class ItemPedidoController {
 
     @GetMapping
     public ResponseEntity<List<ItemPedido>> listarTodos() {
-        // return ResponseEntity.ok(itemPedidoService.listarTodos());
-        return ResponseEntity.ok(List.of());
+        return ResponseEntity.ok(itemPedidoService.listarTodos());
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<ItemPedido> buscarPorId(@PathVariable String id) {
-        // return itemPedidoService.buscarPorId(id)
-        //         .map(ResponseEntity::ok)
-        //         .orElse(ResponseEntity.notFound().build());
-        return ResponseEntity.notFound().build();
+        return itemPedidoService.buscarPorId(id)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
     }
 
     @GetMapping("/pedido/{pedidoId}")
     public ResponseEntity<List<ItemPedido>> buscarPorPedido(@PathVariable String pedidoId) {
-        // return ResponseEntity.ok(itemPedidoService.buscarPorPedido(pedidoId));
-        return ResponseEntity.ok(List.of());
+        return ResponseEntity.ok(itemPedidoService.buscarPorPedido(pedidoId));
     }
 
     @GetMapping("/peca/{pecaId}")
     public ResponseEntity<List<ItemPedido>> buscarPorPeca(@PathVariable String pecaId) {
-        // return ResponseEntity.ok(itemPedidoService.buscarPorPeca(pecaId));
-        return ResponseEntity.ok(List.of());
+        return ResponseEntity.ok(itemPedidoService.buscarPorPeca(pecaId));
     }
 
     @PostMapping
     public ResponseEntity<ItemPedido> criar(@RequestBody ItemPedidoDTO dto) {
         try {
-            // ItemPedido item = itemPedidoService.criar(dto);
-            // return ResponseEntity.status(HttpStatus.CREATED).body(item);
-            return ResponseEntity.status(HttpStatus.CREATED).build();
+            ItemPedido item = itemPedidoService.criar(dto);
+            return ResponseEntity.status(HttpStatus.CREATED).body(item);
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().build();
         }
@@ -60,9 +55,8 @@ public class ItemPedidoController {
             @PathVariable String id,
             @RequestParam Integer quantidade) {
         try {
-            // ItemPedido item = itemPedidoService.atualizarQuantidade(id, quantidade);
-            // return ResponseEntity.ok(item);
-            return ResponseEntity.ok().build();
+            ItemPedido item = itemPedidoService.atualizarQuantidade(id, quantidade);
+            return ResponseEntity.ok(item);
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().build();
         }
@@ -70,16 +64,15 @@ public class ItemPedidoController {
 
     @GetMapping("/{id}/subtotal")
     public ResponseEntity<Double> calcularSubtotal(@PathVariable String id) {
-        // return itemPedidoService.buscarPorId(id)
-        //         .map(item -> ResponseEntity.ok(item.getSubtotal()))
-        //         .orElse(ResponseEntity.notFound().build());
-        return ResponseEntity.ok(0.0);
+        return itemPedidoService.buscarPorId(id)
+                .map(item -> ResponseEntity.ok(item.getSubtotal()))
+                .orElse(ResponseEntity.notFound().build());
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> excluir(@PathVariable String id) {
         try {
-            // itemPedidoService.excluir(id);
+            itemPedidoService.excluir(id);
             return ResponseEntity.noContent().build();
         } catch (RuntimeException e) {
             return ResponseEntity.notFound().build();
@@ -88,8 +81,7 @@ public class ItemPedidoController {
 
     @GetMapping("/pedido/{pedidoId}/total")
     public ResponseEntity<Double> calcularTotalPedido(@PathVariable String pedidoId) {
-        // Double total = itemPedidoService.calcularTotalPedido(pedidoId);
-        // return ResponseEntity.ok(total);
-        return ResponseEntity.ok(0.0);
+        Double total = itemPedidoService.calcularTotalPedido(pedidoId);
+        return ResponseEntity.ok(total);
     }
 }

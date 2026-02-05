@@ -9,6 +9,7 @@ public class UsuarioDTO {
     private String email;
     private String telefone;
     private UsuarioTipo tipo;
+    private boolean ativo;
     private LocalDateTime dataCadastro;
     private EnderecoDTO endereco;
 
@@ -16,12 +17,13 @@ public class UsuarioDTO {
     }
 
     public UsuarioDTO(String id, String nome, String email, String telefone,
-                      UsuarioTipo tipo, LocalDateTime dataCadastro, EnderecoDTO endereco) {
+                      UsuarioTipo tipo, boolean ativo, LocalDateTime dataCadastro, EnderecoDTO endereco) {
         this.id = id;
         this.nome = nome;
         this.email = email;
         this.telefone = telefone;
         this.tipo = tipo;
+        this.ativo = ativo;
         this.dataCadastro = dataCadastro;
         this.endereco = endereco;
     }
@@ -64,6 +66,14 @@ public class UsuarioDTO {
 
     public void setTipo(UsuarioTipo tipo) {
         this.tipo = tipo;
+    }
+
+    public boolean isAtivo() {
+        return ativo;
+    }
+
+    public void setAtivo(boolean ativo) {
+        this.ativo = ativo;
     }
 
     public LocalDateTime getDataCadastro() {
