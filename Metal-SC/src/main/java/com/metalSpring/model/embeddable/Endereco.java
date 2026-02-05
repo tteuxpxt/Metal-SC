@@ -48,7 +48,7 @@ public class Endereco {
         if (novoEndereco.getCep() != null) this.cep = novoEndereco.getCep();
     }
 
-    // Getters e Setters
+    
     public String getRua() { return rua; }
     public void setRua(String rua) { this.rua = rua; }
 

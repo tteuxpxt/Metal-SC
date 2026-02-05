@@ -58,8 +58,8 @@ public class Peca {
     })
     private Endereco endereco;
 
-    // ✅ JsonBackReference: Evita loop infinito na serialização
-    // Esta é a parte "filha" da relação - não será serializada quando vindo do Revendedor
+    
+    
     @ManyToOne
     @JoinColumn(name = "vendedor_id", nullable = false)
     @JsonBackReference("revendedor-pecas")
@@ -68,15 +68,15 @@ public class Peca {
     @Column(nullable = false)
     private Integer estoque;
 
-    // ✅ JsonManagedReference: Esta é a parte "pai" da relação com Avaliacao
-    // As avaliações SERÃO serializadas quando buscarmos uma Peca
+    
+    
     @OneToMany(mappedBy = "peca", cascade = CascadeType.ALL)
     @JsonManagedReference("peca-avaliacoes")
     private List<Avaliacao> avaliacoes = new ArrayList<>();
 
     private boolean disponivel = true;
 
-    // ==================== CONSTRUTORES ====================
+    
 
     public Peca() {}
 
@@ -95,7 +95,7 @@ public class Peca {
         this.estoque = estoque;
     }
 
-    // ==================== MÉTODOS DE NEGÓCIO ====================
+    
 
     public void adicionarImagem(String url) {
         if (!imagens.contains(url)) {
@@ -118,7 +118,7 @@ public class Peca {
         return this.estoque > 0;
     }
 
-    // ==================== GETTERS E SETTERS ====================
+    
 
     public String getId() {
         return id;
@@ -245,7 +245,7 @@ public class Peca {
         this.disponivel = disponivel;
     }
 
-    // ==================== EQUALS E HASHCODE ====================
+    
 
     @Override
     public boolean equals(Object o) {

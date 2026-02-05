@@ -27,7 +27,7 @@ public class ItemPedidoService {
     @Autowired
     private PecaRepository pecaRepository;
 
-    // ========== CONSULTAS ==========
+    
 
     public List<ItemPedido> listarTodos() {
         return itemPedidoRepository.findAll();
@@ -45,24 +45,24 @@ public class ItemPedidoService {
         return itemPedidoRepository.findByPecaId(pecaId);
     }
 
-    // ========== CRIAÇÃO ==========
+    
 
     @Transactional
     public ItemPedido criar(ItemPedidoDTO dto) {
-        // Valida pedido
+        
         Pedido pedido = pedidoRepository.findById(dto.getPedidoId())
                 .orElseThrow(() -> new RuntimeException("Pedido não encontrado: " + dto.getPedidoId()));
 
-        // Valida peça
+        
         Peca peca = pecaRepository.findById(dto.getPecaId())
                 .orElseThrow(() -> new RuntimeException("Peça não encontrada: " + dto.getPecaId()));
 
-        // Valida estoque
+        
         if (!peca.estaDisponivel() || peca.getEstoque() < dto.getQuantidade()) {
             throw new RuntimeException("Estoque insuficiente para a peça: " + peca.getNome());
         }
 
-        // Cria item
+        
         ItemPedido item = new ItemPedido();
         item.setId(UUID.randomUUID().toString());
         item.setPedido(pedido);
@@ -70,23 +70,23 @@ public class ItemPedidoService {
         item.setQuantidade(dto.getQuantidade());
         item.setPrecoUnitario(peca.getPreco());
 
-        // Calcula subtotal automaticamente
+        
         item.calcularSubtotal();
 
-        // Atualiza estoque da peça
+        
         peca.setEstoque(peca.getEstoque() - dto.getQuantidade());
         pecaRepository.save(peca);
 
-        // Salva item
+        
         ItemPedido itemSalvo = itemPedidoRepository.save(item);
 
-        // Atualiza valor total do pedido
+        
         atualizarTotalPedido(pedido.getId());
 
         return itemSalvo;
     }
 
-    // ========== ATUALIZAÇÃO ==========
+    
 
     @Transactional
     public ItemPedido atualizarQuantidade(String itemId, Integer novaQuantidade) {
@@ -101,50 +101,50 @@ public class ItemPedidoService {
         Integer quantidadeAnterior = item.getQuantidade();
         Integer diferenca = novaQuantidade - quantidadeAnterior;
 
-        // Verifica se há estoque disponível
+        
         if (diferenca > 0 && peca.getEstoque() < diferenca) {
             throw new RuntimeException("Estoque insuficiente. Disponível: " + peca.getEstoque());
         }
 
-        // Atualiza quantidade do item
+        
         item.setQuantidade(novaQuantidade);
         item.calcularSubtotal();
 
-        // Atualiza estoque da peça
+        
         peca.setEstoque(peca.getEstoque() - diferenca);
         pecaRepository.save(peca);
 
-        // Salva item atualizado
+        
         ItemPedido itemAtualizado = itemPedidoRepository.save(item);
 
-        // Atualiza total do pedido
+        
         atualizarTotalPedido(item.getPedido().getId());
 
         return itemAtualizado;
     }
 
-    // ========== EXCLUSÃO ==========
+    
 
     @Transactional
     public void excluir(String itemId) {
         ItemPedido item = itemPedidoRepository.findById(itemId)
                 .orElseThrow(() -> new RuntimeException("Item não encontrado: " + itemId));
 
-        // Devolve quantidade ao estoque
+        
         Peca peca = item.getPeca();
         peca.setEstoque(peca.getEstoque() + item.getQuantidade());
         pecaRepository.save(peca);
 
         String pedidoId = item.getPedido().getId();
 
-        // Remove item
+        
         itemPedidoRepository.delete(item);
 
-        // Atualiza total do pedido
+        
         atualizarTotalPedido(pedidoId);
     }
 
-    // ========== CÁLCULOS ==========
+    
 
     public Double calcularSubtotal(String itemId) {
         return itemPedidoRepository.findById(itemId)
@@ -169,7 +169,7 @@ public class ItemPedidoService {
         pedidoRepository.save(pedido);
     }
 
-    // ========== VALIDAÇÕES ==========
+    
 
     public boolean itemPertenceAoPedido(String itemId, String pedidoId) {
         return itemPedidoRepository.findById(itemId)
@@ -191,7 +191,7 @@ public class ItemPedidoService {
                 .sum();
     }
 
-    // ========== CONVERSORES ==========
+    
 
     public ItemPedidoDTO toDTO(ItemPedido item) {
         ItemPedidoDTO dto = new ItemPedidoDTO();

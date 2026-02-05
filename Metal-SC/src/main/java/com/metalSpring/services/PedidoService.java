@@ -166,7 +166,7 @@ public class PedidoService {
             }
         }
 
-        // Atualizar estoque das peças
+        
         for (ItemPedido item : pedido.getItens()) {
             Peca peca = item.getPeca();
             peca.alterarEstoque(-item.getQuantidade());

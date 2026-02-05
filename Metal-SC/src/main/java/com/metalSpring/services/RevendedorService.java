@@ -47,7 +47,7 @@ public class RevendedorService {
 
     @Transactional
     public Revendedor criar(Revendedor revendedor) {
-        // Validações
+        
         if (revendedor.getCnpj() == null || revendedor.getCnpj().trim().isEmpty()) {
             throw new RuntimeException("CNPJ é obrigatório");
         }
@@ -60,12 +60,12 @@ public class RevendedorService {
             throw new RuntimeException("CNPJ já cadastrado");
         }
 
-        // Codifica a senha
+        
         if (revendedor.getSenhaHash() != null && !revendedor.getSenhaHash().isEmpty()) {
             revendedor.setSenhaHash(passwordEncoder.encode(revendedor.getSenhaHash()));
         }
 
-        // Configurações iniciais
+        
         revendedor.setAvaliacaoMedia(0.0);
         revendedor.setDataCadastro(LocalDateTime.now());
         revendedor.setAtivo(true);

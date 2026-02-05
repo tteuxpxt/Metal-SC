@@ -20,13 +20,13 @@ public class ClienteController {
     @Autowired
     private ClienteService clienteService;
 
-    // LISTAR TODOS OS CLIENTES
+    
     @GetMapping
     public ResponseEntity<List<Cliente>> listarTodos() {
         return ResponseEntity.ok(clienteService.listarTodos());
     }
 
-    // BUSCAR CLIENTE POR ID
+    
     @GetMapping("/{id}")
     public ResponseEntity<Cliente> buscarPorId(@PathVariable String id) {
         return clienteService.buscarPorId(id)
@@ -34,7 +34,7 @@ public class ClienteController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    // BUSCAR CLIENTE POR EMAIL
+    
     @GetMapping("/email/{email}")
     public ResponseEntity<Cliente> buscarPorEmail(@PathVariable String email) {
         return clienteService.buscarPorEmail(email)
@@ -42,11 +42,11 @@ public class ClienteController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    // CADASTRAR NOVO CLIENTE
+    
     @PostMapping
     public ResponseEntity<?> cadastrar(@RequestBody UsuarioCadastroDTO dto) {
         try {
-            // Validações básicas
+            
             if (dto.getNome() == null || dto.getNome().trim().isEmpty()) {
                 return ResponseEntity.badRequest()
                         .body(Map.of("error", "Nome é obrigatório"));
@@ -60,21 +60,21 @@ public class ClienteController {
                         .body(Map.of("error", "Senha é obrigatória"));
             }
 
-            // Verifica se email já existe
+            
             if (clienteService.emailExiste(dto.getEmail())) {
                 return ResponseEntity.badRequest()
                         .body(Map.of("error", "Email já cadastrado"));
             }
 
-            // Cria o cliente
+            
             Cliente cliente = new Cliente(
                     dto.getNome(),
                     dto.getEmail(),
-                    dto.getSenha(), // Será criptografada no service
+                    dto.getSenha(), 
                     dto.getTelefone()
             );
 
-            // Adiciona endereço se fornecido
+            
             if (dto.getEndereco() != null) {
                 Endereco endereco = new Endereco(
                         dto.getEndereco().getRua(),
@@ -97,7 +97,7 @@ public class ClienteController {
         }
     }
 
-    // ATUALIZAR CLIENTE
+    
     @PutMapping("/{id}")
     public ResponseEntity<?> atualizar(
             @PathVariable String id,
@@ -111,7 +111,7 @@ public class ClienteController {
         }
     }
 
-    // DELETAR CLIENTE
+    
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deletar(@PathVariable String id) {
         try {
@@ -122,13 +122,13 @@ public class ClienteController {
         }
     }
 
-    // BUSCAR CLIENTES POR NOME
+    
     @GetMapping("/nome/{nome}")
     public ResponseEntity<List<Cliente>> buscarPorNome(@PathVariable String nome) {
         return ResponseEntity.ok(clienteService.buscarPorNome(nome));
     }
 
-    // BUSCAR CLIENTES MAIS ATIVOS
+    
     @GetMapping("/mais-ativos")
     public ResponseEntity<List<Cliente>> buscarMaisAtivos() {
         return ResponseEntity.ok(clienteService.buscarClientesMaisAtivos());

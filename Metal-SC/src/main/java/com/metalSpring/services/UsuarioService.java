@@ -38,12 +38,12 @@ public class UsuarioService {
 
     @Transactional
     public Usuario criar(Usuario usuario) {
-        // Validação de email duplicado
+        
         if (usuarioRepository.findByEmail(usuario.getEmail()).isPresent()) {
             throw new RuntimeException("Email já cadastrado");
         }
 
-        // CORREÇÃO: Criptografar senha ANTES de salvar
+        
         if (usuario.getSenhaHash() != null && !usuario.getSenhaHash().isEmpty()) {
             usuario.setSenhaHash(passwordEncoder.encode(usuario.getSenhaHash()));
         } else {
@@ -51,7 +51,7 @@ public class UsuarioService {
         }
 
         usuario.setDataCadastro(LocalDateTime.now());
-        usuario.setAtivo(true); // Define como ativo por padrão
+        usuario.setAtivo(true); 
 
         return usuarioRepository.save(usuario);
     }
@@ -82,12 +82,12 @@ public class UsuarioService {
 
         Usuario usuario = usuarioOpt.get();
 
-        // CORREÇÃO: Validar senha usando PasswordEncoder
+        
         if (!passwordEncoder.matches(senhaAtual, usuario.getSenhaHash())) {
             throw new RuntimeException("Senha atual incorreta");
         }
 
-        // Criptografar nova senha
+        
         usuario.setSenhaHash(passwordEncoder.encode(novaSenha));
         usuarioRepository.save(usuario);
     }
@@ -99,7 +99,7 @@ public class UsuarioService {
             throw new RuntimeException("Usuário não encontrado");
         }
 
-        // CORREÇÃO: Usar PasswordEncoder para validar
+        
         return passwordEncoder.matches(senha, usuario.get().getSenhaHash());
     }
 

@@ -1,4 +1,4 @@
-// ==================== MensagemSuporteDTO.java ====================
+
 package com.metalSpring.model.dto;
 
 import com.metalSpring.model.enums.CanalSuporte;
@@ -16,7 +16,7 @@ public class MensagemSuporteDTO {
     private String resposta;
     private LocalDateTime dataResposta;
 
-    // Construtores
+    
     public MensagemSuporteDTO() {}
 
     public MensagemSuporteDTO(String usuarioId, String conteudo, CanalSuporte canal) {
@@ -27,7 +27,7 @@ public class MensagemSuporteDTO {
         this.dataEnvio = LocalDateTime.now();
     }
 
-    // Getters e Setters
+    
     public String getId() {
         return id;
     }

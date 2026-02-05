@@ -1,4 +1,4 @@
-// ==================== AvaliacaoDTO.java ====================
+
 package com.metalSpring.model.dto;
 
 import java.time.LocalDateTime;
@@ -15,7 +15,7 @@ public class AvaliacaoDTO {
     private String comentario;
     private LocalDateTime data;
 
-    // Construtores
+    
     public AvaliacaoDTO() {}
 
     public AvaliacaoDTO(String clienteId, String revendedorId, String pecaId,
@@ -28,7 +28,7 @@ public class AvaliacaoDTO {
         this.data = LocalDateTime.now();
     }
 
-    // Getters e Setters
+    
     public String getId() {
         return id;
     }

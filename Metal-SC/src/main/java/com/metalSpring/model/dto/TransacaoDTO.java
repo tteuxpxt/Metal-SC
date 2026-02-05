@@ -12,7 +12,7 @@ public class TransacaoDTO {
     private TransacaoStatus status;
     private String referencia;
 
-    // Construtores
+    
     public TransacaoDTO() {}
 
     public TransacaoDTO(String id, String pedidoId, LocalDateTime data,
@@ -24,7 +24,7 @@ public class TransacaoDTO {
         this.status = status;
     }
 
-    // Getters e Setters
+    
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }
 

@@ -33,7 +33,7 @@ public class Avaliacao {
     @Column(nullable = false)
     private LocalDateTime data;
 
-    // Construtores
+    
     public Avaliacao() {
         this.data = LocalDateTime.now();
     }
@@ -47,7 +47,7 @@ public class Avaliacao {
         this.comentario = comentario;
     }
 
-    // Métodos de negócio
+    
     public void editarAvaliacao(Integer nota, String comentario) {
         if (nota != null && nota >= 1 && nota <= 5) {
             this.nota = nota;
@@ -62,7 +62,7 @@ public class Avaliacao {
         System.out.println("Avaliação excluída: " + this.id);
     }
 
-    // Getters e Setters
+    
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }
 
@@ -75,7 +75,7 @@ public class Avaliacao {
     public Peca getPeca() { return peca; }
     public void setPeca(Peca peca) { this.peca = peca; }
 
-    public Integer getNota() { return nota; }  // ← ESTE MÉTODO É IMPORTANTE
+    public Integer getNota() { return nota; }  
     public void setNota(Integer nota) { this.nota = nota; }
 
     public String getComentario() { return comentario; }

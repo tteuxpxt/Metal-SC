@@ -37,7 +37,7 @@ public class PecaService {
         }
     }
 
-    // ==================== MÉTODOS DE CONSULTA ====================
+    
 
     public List<Peca> listarTodas() {
         desativarPremiumExpirado();
@@ -89,27 +89,19 @@ public class PecaService {
         return peca.isPresent() && peca.get().estaDisponivel();
     }
 
-    // ==================== MÉTODOS DE MODIFICAÇÃO ====================
+    
 
     @Transactional
     public Peca salvar(Peca peca) {
         return pecaRepository.save(peca);
     }
 
-    /**
-     * ✅ MÉTODO PRINCIPAL PARA CRIAR PEÇAS
-     * Este é o ÚNICO método criar() - remove qualquer outro
-     *
-     * @param peca - Entidade Peca com os dados
-     * @param revendedorId - ID do revendedor que está anunciando
-     * @return Peca criada e salva no banco
-     * @throws RuntimeException se o revendedor não for encontrado
-     */
+    
     @Transactional
     public Peca criar(Peca peca, String revendedorId) {
         System.out.println("🔍 [PecaService] Buscando revendedor com ID: " + revendedorId);
 
-        // Busca o revendedor no banco
+        
         Optional<Revendedor> revendedorOpt = revendedorRepository.findById(revendedorId);
 
         if (revendedorOpt.isEmpty()) {
@@ -124,15 +116,15 @@ public class PecaService {
         }
         System.out.println("✅ [PecaService] Revendedor encontrado: " + revendedor.getNome());
 
-        // Associa o revendedor à peça
+        
         peca.setVendedor(revendedor);
 
-        // Salva a peça no banco
+        
         System.out.println("💾 [PecaService] Salvando peça: " + peca.getNome());
         Peca pecaSalva = pecaRepository.save(peca);
         System.out.println("✅ [PecaService] Peça salva com ID: " + pecaSalva.getId());
 
-        // Adiciona a peça à lista do revendedor
+        
         revendedor.adicionarPeca(pecaSalva);
         revendedorRepository.save(revendedor);
         System.out.println("✅ [PecaService] Peça associada ao revendedor");
@@ -153,7 +145,7 @@ public class PecaService {
 
         Peca peca = pecaExistente.get();
 
-        // Atualiza os campos
+        
         if (pecaAtualizada.getNome() != null) {
             peca.setNome(pecaAtualizada.getNome());
         }

@@ -12,10 +12,10 @@ public class UsuarioCadastroDTO {
     private String cnpj;
     private String nomeLoja;
 
-    // Construtores
+    
     public UsuarioCadastroDTO() {}
 
-    // ✅ GETTERS E SETTERS COMPLETOS
+    
     public String getNome() {
         return nome;
     }

@@ -33,7 +33,7 @@ public class AdministradorService {
     @Autowired
     private RevendedorRepository revendedorRepository;
 
-    // --- CRUD BASICO ---
+    
     public List<Administrador> listarTodos() {
         return adminRepository.findAll();
     }
@@ -47,7 +47,7 @@ public class AdministradorService {
                 .orElseThrow(() -> new RuntimeException("Administrador nao encontrado"));
     }
 
-    // --- ACOES ADMINISTRATIVAS ---
+    
 
     public void bloquearUsuario(String usuarioId, String motivo) {
         Usuario usuario = usuarioRepository.findById(usuarioId)
@@ -155,7 +155,7 @@ public class AdministradorService {
         revendedorRepository.save(revendedor);
     }
 
-    // --- RELATORIOS E DASHBOARD ---
+    
 
     public Map<String, Object> gerarDashboard() {
         Map<String, Object> dashboard = new HashMap<>();

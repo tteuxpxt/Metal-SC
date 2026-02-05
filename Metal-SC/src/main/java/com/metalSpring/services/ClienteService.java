@@ -35,22 +35,22 @@ public class ClienteService {
 
     @Transactional
     public Cliente criar(Cliente cliente) {
-        // Validação de email duplicado
+        
         if (clienteRepository.findByEmail(cliente.getEmail()).isPresent()) {
             throw new RuntimeException("Email já cadastrado");
         }
 
-        // Garante que o tipo é CLIENTE
+        
         cliente.setTipo(UsuarioTipo.CLIENTE);
 
-        // Criptografa senha
+        
         if (cliente.getSenhaHash() != null && !cliente.getSenhaHash().isEmpty()) {
             cliente.setSenhaHash(passwordEncoder.encode(cliente.getSenhaHash()));
         } else {
             throw new RuntimeException("Senha é obrigatória");
         }
 
-        // Configurações iniciais
+        
         cliente.setDataCadastro(LocalDateTime.now());
         cliente.setAtivo(true);
 
@@ -62,7 +62,7 @@ public class ClienteService {
         Cliente cliente = clienteRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Cliente não encontrado"));
 
-        // Atualiza apenas campos permitidos
+        
         if (clienteAtualizado.getNome() != null) {
             cliente.setNome(clienteAtualizado.getNome());
         }
@@ -101,12 +101,12 @@ public class ClienteService {
         Cliente cliente = clienteRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Cliente não encontrado"));
 
-        // Valida senha atual
+        
         if (!passwordEncoder.matches(senhaAtual, cliente.getSenhaHash())) {
             throw new RuntimeException("Senha atual incorreta");
         }
 
-        // Criptografa e salva nova senha
+        
         cliente.setSenhaHash(passwordEncoder.encode(novaSenha));
         clienteRepository.save(cliente);
     }

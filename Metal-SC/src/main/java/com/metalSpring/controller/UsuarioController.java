@@ -52,7 +52,7 @@ public class UsuarioController {
     @PostMapping
     public ResponseEntity<?> criar(@RequestBody UsuarioCadastroDTO dto) {
         try {
-            // Validações básicas
+            
             if (dto.getNome() == null || dto.getNome().trim().isEmpty()) {
                 return ResponseEntity.badRequest().body("Nome é obrigatório");
             }
@@ -66,14 +66,14 @@ public class UsuarioController {
                 return ResponseEntity.badRequest().body("Tipo de usuário é obrigatório");
             }
 
-            // Verifica se email já existe
+            
             if (usuarioService.emailExiste(dto.getEmail())) {
                 return ResponseEntity.badRequest().body("Email já cadastrado");
             }
 
             Usuario usuario;
 
-            // Se for REVENDEDOR, cria Revendedor
+            
             if (dto.getTipo() == UsuarioTipo.REVENDEDOR) {
                 if (dto.getCnpj() == null || dto.getCnpj().trim().isEmpty()) {
                     return ResponseEntity.badRequest().body("CNPJ é obrigatório para revendedor");
@@ -85,7 +85,7 @@ public class UsuarioController {
                 Revendedor revendedor = new Revendedor();
                 revendedor.setNome(dto.getNome());
                 revendedor.setEmail(dto.getEmail());
-                revendedor.setSenhaHash(dto.getSenha()); // Será codificada no service
+                revendedor.setSenhaHash(dto.getSenha()); 
                 revendedor.setTelefone(dto.getTelefone());
                 revendedor.setTipo(UsuarioTipo.REVENDEDOR);
                 revendedor.setCnpj(dto.getCnpj());
@@ -93,11 +93,11 @@ public class UsuarioController {
 
                 usuario = revendedorService.criar(revendedor);
             } else {
-                // Cria usuário comum (CLIENTE ou ADMINISTRADOR)
+                
                 usuario = new Usuario();
                 usuario.setNome(dto.getNome());
                 usuario.setEmail(dto.getEmail());
-                usuario.setSenhaHash(dto.getSenha()); // Será codificada no service
+                usuario.setSenhaHash(dto.getSenha()); 
                 usuario.setTelefone(dto.getTelefone());
                 usuario.setTipo(dto.getTipo());
 

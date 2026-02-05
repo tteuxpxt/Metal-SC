@@ -32,7 +32,7 @@ public class MensagemSuporte {
 
     private String atendenteResponsavel;
 
-    // Construtores
+    
     public MensagemSuporte() {
         this.dataEnvio = LocalDateTime.now();
         this.lida = false;
@@ -45,7 +45,7 @@ public class MensagemSuporte {
         this.canal = canal;
     }
 
-    // Métodos de negócio
+    
     public void marcarComoLida() {
         this.lida = true;
     }
@@ -61,7 +61,7 @@ public class MensagemSuporte {
         System.out.println("Mensagem encaminhada para atendente: " + idAtendente);
     }
 
-    // Getters e Setters
+    
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }
 

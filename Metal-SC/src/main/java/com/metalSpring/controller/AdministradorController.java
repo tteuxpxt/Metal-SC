@@ -29,7 +29,7 @@ public class AdministradorController {
     @Value("${app.premium.dias:30}")
     private int diasPremiumPadrao;
 
-    // --- ENDPOINTS DE LEITURA ---
+    
 
     @GetMapping
     public ResponseEntity<List<Administrador>> listarTodos() {
@@ -106,7 +106,7 @@ public class AdministradorController {
         return ResponseEntity.ok(administradorService.gerarDashboard());
     }
 
-    // --- ENDPOINTS DE ESCRITA ---
+    
 
     @PostMapping
     public ResponseEntity<Administrador> criar(@RequestBody Administrador administrador) {

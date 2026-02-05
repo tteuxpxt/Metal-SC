@@ -17,7 +17,7 @@ public class PedidoDTO {
     private LocalDateTime dataCriacao;
     private EnderecoDTO enderecoEntrega;
 
-    // Construtores
+    
     public PedidoDTO() {}
 
     public PedidoDTO(String id, String clienteId, String revendedorId,
@@ -30,7 +30,7 @@ public class PedidoDTO {
         this.dataCriacao = dataCriacao;
     }
 
-    // Getters e Setters
+    
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }
 

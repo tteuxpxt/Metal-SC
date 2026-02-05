@@ -40,7 +40,7 @@ public class RevendedorController {
     @PostMapping
     public ResponseEntity<?> criar(@RequestBody UsuarioCadastroDTO dto) {
         try {
-            // Valida campos obrigatórios para revendedor
+            
             if (dto.getCnpj() == null || dto.getCnpj().isEmpty()) {
                 return ResponseEntity.badRequest()
                         .body(java.util.Map.of("error", "CNPJ é obrigatório"));
@@ -53,7 +53,7 @@ public class RevendedorController {
             Revendedor revendedor = new Revendedor(
                     dto.getNome(),
                     dto.getEmail(),
-                    dto.getSenha(), // Será criptografada no service
+                    dto.getSenha(), 
                     dto.getTelefone(),
                     dto.getCnpj(),
                     dto.getNomeLoja()

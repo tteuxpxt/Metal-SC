@@ -9,7 +9,7 @@ public class EnderecoDTO {
     private String estado;
     private String cep;
 
-    // Construtores
+    
     public EnderecoDTO() {}
 
     public EnderecoDTO(String rua, String numero, String bairro,
@@ -22,7 +22,7 @@ public class EnderecoDTO {
         this.cep = cep;
     }
 
-    // Getters e Setters
+    
     public String getRua() { return rua; }
     public void setRua(String rua) { this.rua = rua; }
 

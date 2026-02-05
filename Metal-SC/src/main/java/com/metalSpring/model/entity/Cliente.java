@@ -24,7 +24,7 @@ public class Cliente extends Usuario {
         super(nome, email, senhaHash, telefone, UsuarioTipo.CLIENTE);
     }
 
-    // Métodos específicos de Cliente
+    
     public void adicionarPedido(Pedido pedido) {
         pedidos.add(pedido);
     }
@@ -44,7 +44,7 @@ public class Cliente extends Usuario {
                 .sum();
     }
 
-    // Getters e Setters
+    
     public List<Pedido> getPedidos() { return pedidos; }
     public void setPedidos(List<Pedido> pedidos) { this.pedidos = pedidos; }
 

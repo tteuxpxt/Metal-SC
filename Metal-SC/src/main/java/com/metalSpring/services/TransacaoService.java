@@ -28,7 +28,7 @@ public class TransacaoService {
     @Autowired
     private PedidoService pedidoService;
 
-    // ========== CONSULTAS ==========
+    
 
     public List<Transacao> listarTodas() {
         return transacaoRepository.findAll();
@@ -54,7 +54,7 @@ public class TransacaoService {
         return transacaoRepository.findByMetodo(metodo);
     }
 
-    // ========== CRIAÇÃO E PROCESSAMENTO ==========
+    
 
     @Transactional
     public Transacao criarTransacao(String pedidoId, MetodoPagamento metodo, String referencia) {
@@ -88,10 +88,10 @@ public class TransacaoService {
         transacao.setStatus(TransacaoStatus.PROCESSANDO);
         transacaoRepository.save(transacao);
 
-        // Aqui você integraria com gateway de pagamento
-        // Simulando processamento bem-sucedido
+        
+        
         try {
-            // Lógica de integração com pagamento
+            
             boolean pagamentoAprovado = simularProcessamentoPagamento(transacao);
 
             if (pagamentoAprovado) {
@@ -107,11 +107,11 @@ public class TransacaoService {
     }
 
     private boolean simularProcessamentoPagamento(Transacao transacao) {
-        // Simula 90% de aprovação
+        
         return Math.random() > 0.1;
     }
 
-    // ========== CONFIRMAÇÃO E RECUSA ==========
+    
 
     @Transactional
     public Transacao confirmar(String transacaoId) {
@@ -121,7 +121,7 @@ public class TransacaoService {
         transacao.setStatus(TransacaoStatus.CONFIRMADA);
         transacaoRepository.save(transacao);
 
-        // Atualiza status do pedido
+        
         pedidoService.confirmarPagamento(transacao.getPedido().getId());
 
         return transacao;
@@ -135,13 +135,13 @@ public class TransacaoService {
         transacao.setStatus(TransacaoStatus.RECUSADA);
         transacaoRepository.save(transacao);
 
-        // Você pode adicionar um campo 'motivo' na entidade Transacao
-        // transacao.setMotivoRecusa(motivo);
+        
+        
 
         return transacao;
     }
 
-    // ========== ESTORNO ==========
+    
 
     @Transactional
     public Transacao estornar(String transacaoId) {
@@ -152,7 +152,7 @@ public class TransacaoService {
             throw new RuntimeException("Apenas transações confirmadas podem ser estornadas");
         }
 
-        // Verifica se o pedido pode ser estornado (ex: dentro de 30 dias)
+        
         if (!podeSerEstornada(transacao)) {
             throw new RuntimeException("Transação fora do prazo de estorno");
         }
@@ -160,20 +160,20 @@ public class TransacaoService {
         transacao.setStatus(TransacaoStatus.ESTORNADA);
         transacaoRepository.save(transacao);
 
-        // Cancela o pedido associado
+        
         pedidoService.cancelarPedido(transacao.getPedido().getId());
 
         return transacao;
     }
 
-    // ========== VALIDAÇÕES ==========
+    
 
     public boolean podeSerEstornada(Transacao transacao) {
         if (transacao.getStatus() != TransacaoStatus.CONFIRMADA) {
             return false;
         }
 
-        // Verifica se está dentro de 30 dias
+        
         LocalDateTime prazoLimite = transacao.getData().plusDays(30);
         return LocalDateTime.now().isBefore(prazoLimite);
     }
@@ -190,7 +190,7 @@ public class TransacaoService {
                 .orElse(false);
     }
 
-    // ========== CANCELAMENTO ==========
+    
 
     @Transactional
     public Transacao cancelar(String transacaoId) {
@@ -205,7 +205,7 @@ public class TransacaoService {
         return transacaoRepository.save(transacao);
     }
 
-    // ========== RELATÓRIOS ==========
+    
 
     public Double calcularTotalPorPeriodo(LocalDateTime dataInicio, LocalDateTime dataFim) {
         List<Transacao> transacoes = buscarPorData(dataInicio, dataFim);

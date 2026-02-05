@@ -78,23 +78,20 @@ public class PecaController {
         return ResponseEntity.ok(pecaService.listarDisponiveis());
     }
 
-    /**
-     * ✅ ENDPOINT CORRIGIDO PARA CRIAR PEÇAS
-     * Agora recebe o revendedorId do DTO e passa para o service
-     */
+    
     @PostMapping
     public ResponseEntity<?> criar(@RequestBody PecaDTO dto) {
         try {
-            // Valida se o revendedorId foi enviado
+            
             if (dto.getRevendedorId() == null || dto.getRevendedorId().isEmpty()) {
                 return ResponseEntity.badRequest()
                         .body("O campo 'revendedorId' é obrigatório");
             }
 
-            // Converte DTO para Entity
+            
             Peca peca = converterParaEntity(dto);
 
-            // Cria a peça com o revendedor
+            
             Peca pecaCriada = pecaService.criar(peca, dto.getRevendedorId());
 
             return ResponseEntity.status(HttpStatus.CREATED).body(pecaCriada);
@@ -208,9 +205,7 @@ public class PecaController {
         }
     }
 
-    /**
-     * Converte PecaDTO para Entity Peca
-     */
+    
     private Peca converterParaEntity(PecaDTO dto) {
         Peca peca = new Peca();
         peca.setNome(dto.getNome());
@@ -233,7 +228,7 @@ public class PecaController {
             endereco.setCep(dto.getEndereco().getCep());
             peca.setEndereco(endereco);
         }
-        // NÃO setamos o vendedor aqui - isso é feito no service
+        
         return peca;
     }
 }

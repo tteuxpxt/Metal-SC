@@ -9,7 +9,7 @@ public class ItemPedidoDTO {
     private Double subtotal;
     private String pedidoid;
 
-    // Construtores
+    
     public ItemPedidoDTO() {}
 
     public ItemPedidoDTO(String pecaId, Integer quantidade, Double precoUnitario) {
@@ -19,7 +19,7 @@ public class ItemPedidoDTO {
         this.subtotal = quantidade * precoUnitario;
     }
 
-    // Getters e Setters
+    
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }
 

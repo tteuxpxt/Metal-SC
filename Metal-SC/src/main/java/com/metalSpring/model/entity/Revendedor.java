@@ -10,11 +10,11 @@ import java.util.List;
 @DiscriminatorValue("REVENDEDOR")
 public class Revendedor extends Usuario {
 
-    // ✅ CORREÇÃO: Remover nullable=false para permitir NULL quando for Cliente
-    @Column(unique = true)  // Removido: nullable = false
+    
+    @Column(unique = true)  
     private String cnpj;
 
-    @Column  // Removido: nullable = false
+    @Column  
     private String nomeLoja;
 
     private Double avaliacaoMedia;
@@ -75,7 +75,7 @@ public class Revendedor extends Usuario {
         return soma;
     }
 
-    // Getters e Setters
+    
     public String getCnpj() { return cnpj; }
     public void setCnpj(String cnpj) { this.cnpj = cnpj; }
 

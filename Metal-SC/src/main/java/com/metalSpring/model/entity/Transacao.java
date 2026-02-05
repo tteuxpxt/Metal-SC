@@ -73,7 +73,7 @@ public class Transacao {
         this.status = TransacaoStatus.ESTORNADA;
     }
 
-    // Getters e Setters
+    
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }
 
