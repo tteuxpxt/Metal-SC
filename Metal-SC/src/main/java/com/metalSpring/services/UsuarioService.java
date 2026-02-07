@@ -116,6 +116,19 @@ public class UsuarioService {
     }
 
     @Transactional
+    public Usuario atualizarFoto(String id, String fotoUrl) {
+        Optional<Usuario> usuarioOpt = usuarioRepository.findById(id);
+
+        if (usuarioOpt.isEmpty()) {
+            throw new RuntimeException("Usuario nao encontrado");
+        }
+
+        Usuario usuario = usuarioOpt.get();
+        usuario.setFotoUrl(fotoUrl);
+        return usuarioRepository.save(usuario);
+    }
+
+    @Transactional
     public Usuario atualizarEndereco(String id, com.metalSpring.model.embeddable.Endereco endereco) {
         Optional<Usuario> usuarioOpt = usuarioRepository.findById(id);
 

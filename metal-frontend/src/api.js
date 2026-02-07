@@ -51,6 +51,80 @@ export const fetchPedidosByCliente = (clienteId) =>
 export const fetchPedidosByRevendedor = (revendedorId) =>
   request(`/pedidos/revendedor/${revendedorId}`);
 
+export const fetchRevendedorById = (revendedorId) =>
+  request(`/revendedores/${revendedorId}`);
+
+export const fetchClienteById = (clienteId) =>
+  request(`/clientes/${clienteId}`);
+
+export const fetchPerfilById = (perfilId) =>
+  request(`/perfis/${perfilId}`);
+
+export const updatePerfil = (perfilId, payload) =>
+  request(`/perfis/${perfilId}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload)
+  });
+
+export const fetchComentariosPerfilByAlvo = (alvoId) =>
+  request(`/comentarios-perfil/alvo/${alvoId}`);
+
+export const fetchComentarioPerfilMedia = (alvoId) =>
+  request(`/comentarios-perfil/alvo/${alvoId}/media`);
+
+export const createComentarioPerfil = (payload) =>
+  request('/comentarios-perfil', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+
+export const deleteComentarioPerfil = (comentarioId) =>
+  request(`/comentarios-perfil/${comentarioId}`, { method: 'DELETE' });
+
+export const updateCliente = (clienteId, payload) =>
+  request(`/clientes/${clienteId}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload)
+  });
+
+export const updateRevendedor = (revendedorId, payload) =>
+  request(`/revendedores/${revendedorId}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload)
+  });
+
+export const uploadUsuarioFoto = async (usuarioId, file) => {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const res = await fetch(`${API_URL}/usuarios/${usuarioId}/foto`, {
+    method: 'POST',
+    headers: {
+      ...getAuthHeader()
+    },
+    body: formData
+  });
+
+  let data = null;
+  const contentType = res.headers.get('content-type') || '';
+  if (contentType.includes('application/json')) {
+    data = await res.json();
+  } else {
+    data = await res.text();
+  }
+
+  if (!res.ok) {
+    const message =
+      (data && data.error) ||
+      (data && data.message) ||
+      (typeof data === 'string' && data) ||
+      'Erro ao enviar foto';
+    throw new Error(message);
+  }
+
+  return data;
+};
+
 export const confirmarPagamentoPedido = (pedidoId) =>
   request(`/pedidos/${pedidoId}/confirmar-pagamento`, { method: 'POST' });
 

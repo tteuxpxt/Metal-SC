@@ -1,5 +1,7 @@
 package com.metalSpring.controller;
 
+import com.metalSpring.model.dto.EnderecoDTO;
+import com.metalSpring.model.dto.PerfilDTO;
 import com.metalSpring.model.dto.UsuarioCadastroDTO;
 import com.metalSpring.model.entity.Cliente;
 import com.metalSpring.model.embeddable.Endereco;
@@ -11,6 +13,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/clientes")
@@ -22,23 +25,26 @@ public class ClienteController {
 
     
     @GetMapping
-    public ResponseEntity<List<Cliente>> listarTodos() {
-        return ResponseEntity.ok(clienteService.listarTodos());
+    public ResponseEntity<List<PerfilDTO>> listarTodos() {
+        List<PerfilDTO> clientes = clienteService.listarTodos().stream()
+                .map(this::toPerfilDTO)
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(clientes);
     }
 
     
     @GetMapping("/{id}")
-    public ResponseEntity<Cliente> buscarPorId(@PathVariable String id) {
+    public ResponseEntity<PerfilDTO> buscarPorId(@PathVariable String id) {
         return clienteService.buscarPorId(id)
-                .map(ResponseEntity::ok)
+                .map(cliente -> ResponseEntity.ok(toPerfilDTO(cliente)))
                 .orElse(ResponseEntity.notFound().build());
     }
 
     
     @GetMapping("/email/{email}")
-    public ResponseEntity<Cliente> buscarPorEmail(@PathVariable String email) {
+    public ResponseEntity<PerfilDTO> buscarPorEmail(@PathVariable String email) {
         return clienteService.buscarPorEmail(email)
-                .map(ResponseEntity::ok)
+                .map(cliente -> ResponseEntity.ok(toPerfilDTO(cliente)))
                 .orElse(ResponseEntity.notFound().build());
     }
 
@@ -104,7 +110,7 @@ public class ClienteController {
             @RequestBody Cliente cliente) {
         try {
             Cliente atualizado = clienteService.atualizar(id, cliente);
-            return ResponseEntity.ok(atualizado);
+            return ResponseEntity.ok(toPerfilDTO(atualizado));
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest()
                     .body(Map.of("error", e.getMessage()));
@@ -130,7 +136,38 @@ public class ClienteController {
 
     
     @GetMapping("/mais-ativos")
-    public ResponseEntity<List<Cliente>> buscarMaisAtivos() {
-        return ResponseEntity.ok(clienteService.buscarClientesMaisAtivos());
+    public ResponseEntity<List<PerfilDTO>> buscarMaisAtivos() {
+        List<PerfilDTO> clientes = clienteService.buscarClientesMaisAtivos().stream()
+                .map(this::toPerfilDTO)
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(clientes);
+    }
+
+    private PerfilDTO toPerfilDTO(Cliente cliente) {
+        PerfilDTO dto = new PerfilDTO();
+        dto.setId(cliente.getId());
+        dto.setNome(cliente.getNome());
+        dto.setEmail(cliente.getEmail());
+        dto.setTelefone(cliente.getTelefone());
+        dto.setTipo(cliente.getTipo());
+        dto.setDataCadastro(cliente.getDataCadastro());
+        dto.setFotoUrl(cliente.getFotoUrl());
+        dto.setEndereco(toEnderecoDTO(cliente.getEndereco()));
+        return dto;
+    }
+
+    private EnderecoDTO toEnderecoDTO(com.metalSpring.model.embeddable.Endereco endereco) {
+        if (endereco == null) {
+            return null;
+        }
+        EnderecoDTO dto = new EnderecoDTO();
+        dto.setRua(endereco.getRua());
+        dto.setNumero(endereco.getNumero());
+        dto.setComplemento(endereco.getComplemento());
+        dto.setBairro(endereco.getBairro());
+        dto.setCidade(endereco.getCidade());
+        dto.setEstado(endereco.getEstado());
+        dto.setCep(endereco.getCep());
+        return dto;
     }
 }

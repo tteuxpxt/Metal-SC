@@ -30,6 +30,13 @@ import {
   fetchPecasByRevendedor,
   fetchPedidosByCliente,
   fetchPedidosByRevendedor,
+  fetchComentariosPerfilByAlvo,
+  fetchComentarioPerfilMedia,
+  createComentarioPerfil,
+  fetchPerfilById,
+  deleteComentarioPerfil,
+  updatePerfil,
+  uploadUsuarioFoto,
   confirmarPagamentoPedido,
   baixarTaxasRevendedor,
   ativarPremiumRevendedor,
@@ -64,7 +71,7 @@ const formatDate = (value) => {
 
 const WHATSAPP_RELEASE_URL =
   process.env.REACT_APP_WHATSAPP_RELEASE_URL ||
-  "https://media.tenor.com/zGQLL-kwwEoAAAAM/cat-meme-pee.gif";
+  "https://media.tenor.com/bVLdPvuUGlkAAAAM/rigby-cat-pee.gif";
 
 const buildWhatsAppLink = (phone, message) => {
   if (!phone) return '';
@@ -104,6 +111,7 @@ const AppProvider = ({ children }) => {
   const [cart, setCart] = useState([]);
   const [currentPage, setCurrentPage] = useState('home');
   const [selectedProduct, setSelectedProduct] = useState(null);
+  const [selectedProfile, setSelectedProfile] = useState(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
@@ -167,9 +175,21 @@ const AppProvider = ({ children }) => {
     setMobileMenuOpen(false);
   };
 
+  const updateUser = (updatedUser) => {
+    if (!updatedUser) return;
+    setUser(updatedUser);
+  };
+
   const openProduct = (product) => {
     setSelectedProduct(product);
     setCurrentPage('product-detail');
+  };
+
+  const openProfile = (profile) => {
+    if (!profile || !profile.id) return;
+    setSelectedProfile(profile);
+    setCurrentPage('profile');
+    setMobileMenuOpen(false);
   };
 
   const addToCart = (product) => {
@@ -229,11 +249,15 @@ const AppProvider = ({ children }) => {
     setCurrentPage,
     selectedProduct,
     setSelectedProduct,
+    selectedProfile,
+    setSelectedProfile,
     mobileMenuOpen,
     setMobileMenuOpen,
     login,
     logout,
+    updateUser,
     openProduct,
+    openProfile,
     addToCart,
     updateCartQty,
     removeFromCart,
@@ -257,6 +281,7 @@ const AppShell = () => {
         {currentPage === 'login' && <LoginPage />}
         {currentPage === 'register' && <RegisterPage />}
         {currentPage === 'dashboard' && <DashboardPage />}
+        {currentPage === 'profile' && <ProfilePage />}
         {currentPage === 'admin' && <AdminPage />}
       </main>
       <Footer />
@@ -621,7 +646,7 @@ const ProductsPage = () => {
   );
 };
 const ProductDetailPage = () => {
-  const { selectedProduct, addToCart, setCurrentPage } = useApp();
+  const { selectedProduct, addToCart, setCurrentPage, openProfile } = useApp();
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
   if (!selectedProduct) {
@@ -714,6 +739,19 @@ const ProductDetailPage = () => {
               Ir para o carrinho
             </button>
           </div>
+          {selectedProduct.revendedorId && (
+            <div className="detail-seller">
+              <span>Revendedor</span>
+              <button
+                className="ghost-btn small"
+                onClick={() =>
+                  openProfile({ id: selectedProduct.revendedorId, tipo: 'REVENDEDOR' })
+                }
+              >
+                Ver perfil
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -1078,13 +1116,517 @@ const DashboardPage = () => {
           <LogOut size={16} /> Sair
         </button>
       </div>
+      <ProfileSettingsPanel />
       {user.tipo === 'REVENDEDOR' ? <RevendedorDashboard /> : <ClienteDashboard />}
     </div>
   );
 };
 
+const ProfileSettingsPanel = () => {
+  const { user, updateUser } = useApp();
+  const [formData, setFormData] = useState({
+    nome: '',
+    telefone: '',
+    nomeLoja: '',
+    endereco: {
+      rua: '',
+      numero: '',
+      complemento: '',
+      bairro: '',
+      cidade: '',
+      estado: '',
+      cep: ''
+    }
+  });
+  const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!user) return;
+    setFormData({
+      nome: user.nome || '',
+      telefone: user.telefone || '',
+      nomeLoja: user.nomeLoja || '',
+      endereco: {
+        rua: user.endereco?.rua || '',
+        numero: user.endereco?.numero || '',
+        complemento: user.endereco?.complemento || '',
+        bairro: user.endereco?.bairro || '',
+        cidade: user.endereco?.cidade || '',
+        estado: user.endereco?.estado || '',
+        cep: user.endereco?.cep || ''
+      }
+    });
+  }, [user]);
+
+  if (!user) return null;
+
+  const isRevendedor = user.tipo === 'REVENDEDOR';
+
+  const handleEnderecoChange = (event) => {
+    const { name, value } = event.target;
+    setFormData((prev) => ({
+      ...prev,
+      endereco: { ...prev.endereco, [name]: value }
+    }));
+  };
+
+  const handleSave = async (event) => {
+    event.preventDefault();
+    setSaving(true);
+    setError('');
+    setMessage('');
+    try {
+      const payload = {
+        nome: formData.nome,
+        telefone: formData.telefone,
+        endereco: formData.endereco
+      };
+      if (isRevendedor) {
+        payload.nomeLoja = formData.nomeLoja;
+      }
+
+      const updated = await updatePerfil(user.id, payload);
+
+      updateUser(updated);
+      setMessage('Perfil atualizado.');
+    } catch (err) {
+      setError(err.message || 'Erro ao atualizar perfil');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleUploadFoto = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    setError('');
+    setMessage('');
+    try {
+      const data = await uploadUsuarioFoto(user.id, file);
+      const fotoUrl = data?.url;
+      if (fotoUrl) {
+        updateUser({ ...user, fotoUrl });
+        setMessage('Foto atualizada.');
+      }
+    } catch (err) {
+      setError(err.message || 'Erro ao enviar foto');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div className="panel profile-settings">
+      <div className="panel-header">
+        <h2>Meu perfil</h2>
+      </div>
+      {error && <div className="error-message">{error}</div>}
+      {message && <div className="success-message">{message}</div>}
+      <div className="profile-settings-grid">
+        <div className="profile-photo">
+          <div className="avatar">
+            {user.fotoUrl ? (
+              <img src={resolveImageUrl(user.fotoUrl)} alt="Foto de perfil" />
+            ) : (
+              <User size={22} />
+            )}
+          </div>
+          <label className="ghost-btn small">
+            {uploading ? 'Enviando...' : 'Trocar foto'}
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleUploadFoto}
+              disabled={uploading}
+              hidden
+            />
+          </label>
+        </div>
+
+        <form onSubmit={handleSave} className="profile-form">
+          <div className="form-group">
+            <label>Nome</label>
+            <input
+              value={formData.nome}
+              onChange={(e) => setFormData((prev) => ({ ...prev, nome: e.target.value }))}
+              required
+            />
+          </div>
+          <div className="form-group">
+            <label>Telefone</label>
+            <input
+              value={formData.telefone}
+              onChange={(e) =>
+                setFormData((prev) => ({ ...prev, telefone: e.target.value }))
+              }
+            />
+          </div>
+          {isRevendedor && (
+            <div className="form-group">
+              <label>Nome da loja</label>
+              <input
+                value={formData.nomeLoja}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, nomeLoja: e.target.value }))
+                }
+              />
+            </div>
+          )}
+          <div className="form-group">
+            <label>Rua</label>
+            <input
+              name="rua"
+              value={formData.endereco.rua}
+              onChange={handleEnderecoChange}
+            />
+          </div>
+          <div className="form-group">
+            <label>Numero</label>
+            <input
+              name="numero"
+              value={formData.endereco.numero}
+              onChange={handleEnderecoChange}
+            />
+          </div>
+          <div className="form-group">
+            <label>Bairro</label>
+            <input
+              name="bairro"
+              value={formData.endereco.bairro}
+              onChange={handleEnderecoChange}
+            />
+          </div>
+          <div className="form-group">
+            <label>Cidade</label>
+            <input
+              name="cidade"
+              value={formData.endereco.cidade}
+              onChange={handleEnderecoChange}
+            />
+          </div>
+          <div className="form-group">
+            <label>Estado</label>
+            <input
+              name="estado"
+              value={formData.endereco.estado}
+              onChange={handleEnderecoChange}
+            />
+          </div>
+          <div className="form-group">
+            <label>CEP</label>
+            <input
+              name="cep"
+              value={formData.endereco.cep}
+              onChange={handleEnderecoChange}
+            />
+          </div>
+          <button
+            className={`cta-btn ${isRevendedor ? 'profile-save' : ''}`}
+            type="submit"
+            disabled={saving}
+          >
+            {saving ? 'Salvando...' : 'Salvar alterações'}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+const ProfilePage = () => {
+  const { user, selectedProfile, setCurrentPage } = useApp();
+  const [profile, setProfile] = useState(null);
+  const [comentarios, setComentarios] = useState([]);
+  const [media, setMedia] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState('');
+  const [formData, setFormData] = useState({ nota: 5, comentario: '' });
+
+  const loadProfile = async () => {
+    if (!selectedProfile?.id) return;
+    setLoading(true);
+    setError('');
+    try {
+      const perfilData = await fetchPerfilById(selectedProfile.id);
+      setProfile(perfilData);
+
+      const comentariosData = await fetchComentariosPerfilByAlvo(selectedProfile.id);
+      setComentarios(comentariosData || []);
+
+      if (perfilData?.tipo === 'REVENDEDOR') {
+        const mediaData = await fetchComentarioPerfilMedia(selectedProfile.id);
+        setMedia(mediaData);
+      } else {
+        setMedia(null);
+      }
+    } catch (err) {
+      console.error(err);
+      setError(err.message || 'Erro ao carregar perfil');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadProfile();
+  }, [selectedProfile]);
+
+  if (!selectedProfile) {
+    return (
+      <div className="container empty-state">
+        <h2>Perfil nao selecionado.</h2>
+        <button
+          className="cta-btn"
+          onClick={() => setCurrentPage(user ? 'dashboard' : 'home')}
+        >
+          Voltar
+        </button>
+      </div>
+    );
+  }
+
+  const profileTipo = profile?.tipo || selectedProfile.tipo;
+  const isRevendedor = profileTipo === 'REVENDEDOR';
+  const isCliente = profileTipo === 'CLIENTE';
+
+  const canComment =
+    user &&
+    profile &&
+    user.id !== profile.id &&
+    ((user.tipo === 'CLIENTE' && isRevendedor) ||
+      (user.tipo === 'REVENDEDOR' && isCliente));
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    if (!user || !profile) return;
+
+    const comentarioTexto = (formData.comentario || '').trim();
+    const precisaNota = user.tipo === 'CLIENTE' && isRevendedor;
+
+    if (precisaNota && (!formData.nota || formData.nota < 1)) {
+      setError('Nota obrigatoria para avaliar revendedor');
+      return;
+    }
+
+    if (!comentarioTexto && !precisaNota) {
+      setError('Comentario obrigatorio');
+      return;
+    }
+
+    setSending(true);
+    setError('');
+    try {
+      const payload = {
+        autorId: user.id,
+        alvoId: profile.id,
+        comentario: comentarioTexto
+      };
+      if (precisaNota) {
+        payload.nota = Number(formData.nota);
+      }
+
+      await createComentarioPerfil(payload);
+      setFormData({ nota: 5, comentario: '' });
+      await loadProfile();
+    } catch (err) {
+      console.error(err);
+      setError(err.message || 'Erro ao enviar comentario');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const handleDeleteComentario = async (comentarioId) => {
+    if (!comentarioId) return;
+    if (!window.confirm('Excluir este comentario?')) return;
+    try {
+      await deleteComentarioPerfil(comentarioId);
+      await loadProfile();
+    } catch (err) {
+      console.error(err);
+      setError(err.message || 'Erro ao excluir comentario');
+    }
+  };
+
+  let commentHint = 'Faca login para comentar.';
+  if (user && profile && user.id === profile.id) {
+    commentHint = 'Voce esta vendo seu proprio perfil.';
+  } else if (user && !canComment) {
+    commentHint = 'Seu tipo de usuario nao pode comentar este perfil.';
+  }
+
+  return (
+    <div className="container profile-page">
+      <div className="profile-header">
+        <div>
+          <h1>Perfil</h1>
+          <p>{profile?.nome || 'Usuario'}</p>
+        </div>
+        <button
+          className="ghost-btn"
+          onClick={() => setCurrentPage(user ? 'dashboard' : 'home')}
+        >
+          Voltar
+        </button>
+      </div>
+
+      {error && <div className="error-message">{error}</div>}
+
+      {loading ? (
+        <div className="empty-state">Carregando perfil...</div>
+      ) : (
+        <div className="profile-grid">
+          <div className="panel profile-card">
+            <div className="profile-title">
+              <div className="profile-avatar">
+                {profile?.fotoUrl ? (
+                  <img src={resolveImageUrl(profile.fotoUrl)} alt="Foto de perfil" />
+                ) : (
+                  <User size={22} />
+                )}
+              </div>
+              <div>
+                <h2>{profile?.nome || 'Usuario'}</h2>
+                <span className="profile-badge">
+                  {isRevendedor ? 'Revendedor' : 'Cliente'}
+                </span>
+              </div>
+            </div>
+
+            <div className="profile-meta">
+              {isRevendedor && profile?.nomeLoja && (
+                <div className="profile-line">
+                  <span className="meta-chip">Loja: {profile.nomeLoja}</span>
+                </div>
+              )}
+              {profile?.email && (
+                <div className="profile-line">
+                  <Mail size={16} />
+                  <span>{profile.email}</span>
+                </div>
+              )}
+              {profile?.telefone && (
+                <div className="profile-line">
+                  <Phone size={16} />
+                  <span>{profile.telefone}</span>
+                </div>
+              )}
+              {profile?.endereco?.cidade && (
+                <div className="profile-line">
+                  <MapPin size={16} />
+                  <span>
+                    {profile.endereco.cidade}
+                    {profile.endereco.estado ? ` - ${profile.endereco.estado}` : ''}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <div className="profile-rating">
+              {isRevendedor && (
+                <span className="meta-chip">
+                  Media do perfil:{' '}
+                  {media !== null && media !== undefined
+                    ? Number(media).toFixed(1)
+                    : '0.0'}
+                </span>
+              )}
+              <span className="meta-note">{comentarios.length} comentarios</span>
+            </div>
+          </div>
+
+          <div className="panel profile-comments">
+            <div className="panel-header">
+              <h2>Comentarios</h2>
+            </div>
+
+            {canComment ? (
+              <form className="comment-form" onSubmit={handleSubmit}>
+                {user?.tipo === 'CLIENTE' && isRevendedor && (
+                  <div className="form-group">
+                    <label>Nota</label>
+                    <select
+                      value={formData.nota}
+                      onChange={(e) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          nota: Number(e.target.value)
+                        }))
+                      }
+                    >
+                      <option value={5}>5</option>
+                      <option value={4}>4</option>
+                      <option value={3}>3</option>
+                      <option value={2}>2</option>
+                      <option value={1}>1</option>
+                    </select>
+                  </div>
+                )}
+                <div className="form-group">
+                  <label>Comentario</label>
+                  <textarea
+                    rows="3"
+                    value={formData.comentario}
+                    onChange={(e) =>
+                      setFormData((prev) => ({ ...prev, comentario: e.target.value }))
+                    }
+                    placeholder={
+                      user?.tipo === 'REVENDEDOR'
+                        ? 'Conte como foi a negociacao com o cliente'
+                        : 'Conte como foi a compra com o revendedor'
+                    }
+                  />
+                </div>
+                <button className="cta-btn" type="submit" disabled={sending}>
+                  {sending ? 'Enviando...' : 'Enviar comentario'}
+                </button>
+              </form>
+            ) : (
+              <p className="meta-note">{commentHint}</p>
+            )}
+
+            {comentarios.length === 0 ? (
+              <p>Sem comentarios ainda.</p>
+            ) : (
+              <div className="comment-list">
+                {comentarios.map((comentario) => (
+                  <div key={comentario.id} className="comment-card">
+                    <div className="comment-head">
+                      <strong>{comentario.autorNome || 'Usuario'}</strong>
+                      {comentario.nota !== null && comentario.nota !== undefined && (
+                        <span className="meta-chip">Nota: {comentario.nota}/5</span>
+                      )}
+                    </div>
+                    <p>{comentario.comentario || 'Sem comentario.'}</p>
+                    <div className="comment-foot">
+                      <span className="meta-note">{formatDate(comentario.data)}</span>
+                      {user?.id && comentario.autorId === user.id && (
+                        <button
+                          className="ghost-btn small"
+                          onClick={() => handleDeleteComentario(comentario.id)}
+                        >
+                          Excluir
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const ClienteDashboard = () => {
-  const { user } = useApp();
+  const { user, openProfile } = useApp();
   const [pedidos, setPedidos] = useState([]);
 
   useEffect(() => {
@@ -1106,7 +1648,18 @@ const ClienteDashboard = () => {
             <div key={pedido.id} className="order-card">
               <div>
                 <strong>Pedido #{pedido.id?.substring(0, 8)}</strong>
+                <p>Revendedor: {pedido.revendedorNome || 'Revendedor'}</p>
                 <p>{formatDate(pedido.dataCriacao)}</p>
+                {pedido.revendedorId && (
+                  <button
+                    className="ghost-btn small"
+                    onClick={() =>
+                      openProfile({ id: pedido.revendedorId, tipo: 'REVENDEDOR' })
+                    }
+                  >
+                    Ver perfil do revendedor
+                  </button>
+                )}
                 {pedido.status === 'CONFIRMADO' &&
                 (pedido.revendedorTelefone || WHATSAPP_RELEASE_URL) ? (
                   <a
@@ -1139,7 +1692,7 @@ const ClienteDashboard = () => {
 };
 
 const RevendedorDashboard = () => {
-  const { user } = useApp();
+  const { user, openProfile } = useApp();
   const [pecas, setPecas] = useState([]);
   const [pedidos, setPedidos] = useState([]);
   const [loadingPedidos, setLoadingPedidos] = useState(false);
@@ -1401,6 +1954,16 @@ const RevendedorDashboard = () => {
                     <strong>Pedido #{pedido.id?.substring(0, 8)}</strong>
                     <p>Cliente: {pedido.clienteNome || 'Cliente'}</p>
                     <p>{formatDate(pedido.dataCriacao)}</p>
+                    {pedido.clienteId && (
+                      <button
+                        className="ghost-btn small"
+                        onClick={() =>
+                          openProfile({ id: pedido.clienteId, tipo: 'CLIENTE' })
+                        }
+                      >
+                        Ver perfil do cliente
+                      </button>
+                    )}
                   </div>
                   <div className="order-status">
                     <span>{pedido.status}</span>
@@ -1980,5 +2543,3 @@ const Footer = () => (
 );
 
 export default App;
-
-

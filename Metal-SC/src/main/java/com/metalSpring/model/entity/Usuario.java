@@ -33,6 +33,8 @@ public class Usuario {
 
     private String telefone;
 
+    private String fotoUrl;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private UsuarioTipo tipo;
@@ -83,6 +85,9 @@ public class Usuario {
 
     public String getTelefone() { return telefone; }
     public void setTelefone(String telefone) { this.telefone = telefone; }
+
+    public String getFotoUrl() { return fotoUrl; }
+    public void setFotoUrl(String fotoUrl) { this.fotoUrl = fotoUrl; }
 
     public UsuarioTipo getTipo() { return tipo; }
     public void setTipo(UsuarioTipo tipo) { this.tipo = tipo; }

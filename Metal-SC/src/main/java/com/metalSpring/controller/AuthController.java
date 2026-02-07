@@ -73,6 +73,7 @@ public class AuthController {
         dto.setNome(usuario.getNome());
         dto.setEmail(usuario.getEmail());
         dto.setTelefone(usuario.getTelefone());
+        dto.setFotoUrl(usuario.getFotoUrl());
         dto.setTipo(usuario.getTipo());
         dto.setAtivo(usuario.isAtivo());
         dto.setDataCadastro(usuario.getDataCadastro());

@@ -11,8 +11,15 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/usuarios")
@@ -144,6 +151,42 @@ public class UsuarioController {
             return ResponseEntity.noContent().build();
         } catch (RuntimeException e) {
             return ResponseEntity.notFound().build();
+        }
+    }
+
+    @PostMapping("/{id}/foto")
+    public ResponseEntity<?> uploadFotoPerfil(
+            @PathVariable String id,
+            @RequestParam("file") MultipartFile file) {
+        if (file.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Arquivo de imagem vazio"));
+        }
+
+        try {
+            usuarioService.buscarPorId(id)
+                    .orElseThrow(() -> new RuntimeException("Usuario nao encontrado"));
+
+            String originalName = file.getOriginalFilename();
+            String extension = "";
+            if (originalName != null && originalName.contains(".")) {
+                extension = originalName.substring(originalName.lastIndexOf('.'));
+            }
+
+            String filename = UUID.randomUUID() + extension;
+            Path dir = Paths.get("uploads", "usuarios", id);
+            Files.createDirectories(dir);
+            Path destination = dir.resolve(filename);
+            Files.copy(file.getInputStream(), destination);
+
+            String url = "/uploads/usuarios/" + id + "/" + filename;
+            usuarioService.atualizarFoto(id, url);
+
+            return ResponseEntity.ok(Map.of("url", url));
+        } catch (IOException e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Erro ao salvar imagem"));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
     }
 }

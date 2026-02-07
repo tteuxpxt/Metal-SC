@@ -3,31 +3,19 @@ package com.metalSpring.model.dto;
 import com.metalSpring.model.enums.UsuarioTipo;
 import java.time.LocalDateTime;
 
-public class UsuarioDTO {
+public class PerfilDTO {
     private String id;
     private String nome;
     private String email;
     private String telefone;
     private String fotoUrl;
     private UsuarioTipo tipo;
-    private boolean ativo;
     private LocalDateTime dataCadastro;
     private EnderecoDTO endereco;
+    private String nomeLoja;
+    private String cnpj;
 
-    public UsuarioDTO() {
-    }
-
-    public UsuarioDTO(String id, String nome, String email, String telefone,
-                      UsuarioTipo tipo, boolean ativo, LocalDateTime dataCadastro, EnderecoDTO endereco) {
-        this.id = id;
-        this.nome = nome;
-        this.email = email;
-        this.telefone = telefone;
-        this.fotoUrl = null;
-        this.tipo = tipo;
-        this.ativo = ativo;
-        this.dataCadastro = dataCadastro;
-        this.endereco = endereco;
+    public PerfilDTO() {
     }
 
     public String getId() {
@@ -78,14 +66,6 @@ public class UsuarioDTO {
         this.tipo = tipo;
     }
 
-    public boolean isAtivo() {
-        return ativo;
-    }
-
-    public void setAtivo(boolean ativo) {
-        this.ativo = ativo;
-    }
-
     public LocalDateTime getDataCadastro() {
         return dataCadastro;
     }
@@ -101,5 +81,20 @@ public class UsuarioDTO {
     public void setEndereco(EnderecoDTO endereco) {
         this.endereco = endereco;
     }
-}
 
+    public String getNomeLoja() {
+        return nomeLoja;
+    }
+
+    public void setNomeLoja(String nomeLoja) {
+        this.nomeLoja = nomeLoja;
+    }
+
+    public String getCnpj() {
+        return cnpj;
+    }
+
+    public void setCnpj(String cnpj) {
+        this.cnpj = cnpj;
+    }
+}
