@@ -7,6 +7,7 @@ import com.metalSpring.model.embeddable.Endereco;
 import com.metalSpring.model.entity.Administrador;
 import com.metalSpring.model.entity.Revendedor;
 import com.metalSpring.model.entity.Usuario;
+import com.metalSpring.model.enums.UsuarioTipo;
 import com.metalSpring.services.AdministradorService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -62,28 +63,33 @@ public class AdministradorController {
     }
 
     private UsuarioDTO toUsuarioDTO(Usuario usuario) {
+        boolean isAdmin = usuario.getTipo() == UsuarioTipo.ADMINISTRADOR;
         EnderecoDTO enderecoDTO = null;
-        Endereco endereco = usuario.getEndereco();
-        if (endereco != null) {
-            enderecoDTO = new EnderecoDTO();
-            enderecoDTO.setRua(endereco.getRua());
-            enderecoDTO.setNumero(endereco.getNumero());
-            enderecoDTO.setComplemento(endereco.getComplemento());
-            enderecoDTO.setBairro(endereco.getBairro());
-            enderecoDTO.setCidade(endereco.getCidade());
-            enderecoDTO.setEstado(endereco.getEstado());
-            enderecoDTO.setCep(endereco.getCep());
+        if (!isAdmin) {
+            Endereco endereco = usuario.getEndereco();
+            if (endereco != null) {
+                enderecoDTO = new EnderecoDTO();
+                enderecoDTO.setRua(endereco.getRua());
+                enderecoDTO.setNumero(endereco.getNumero());
+                enderecoDTO.setComplemento(endereco.getComplemento());
+                enderecoDTO.setBairro(endereco.getBairro());
+                enderecoDTO.setCidade(endereco.getCidade());
+                enderecoDTO.setEstado(endereco.getEstado());
+                enderecoDTO.setCep(endereco.getCep());
+            }
         }
 
         UsuarioDTO dto = new UsuarioDTO();
         dto.setId(usuario.getId());
         dto.setNome(usuario.getNome());
         dto.setEmail(usuario.getEmail());
-        dto.setTelefone(usuario.getTelefone());
+        if (!isAdmin) {
+            dto.setTelefone(usuario.getTelefone());
+            dto.setEndereco(enderecoDTO);
+        }
         dto.setTipo(usuario.getTipo());
         dto.setAtivo(usuario.isAtivo());
         dto.setDataCadastro(usuario.getDataCadastro());
-        dto.setEndereco(enderecoDTO);
         return dto;
     }
 

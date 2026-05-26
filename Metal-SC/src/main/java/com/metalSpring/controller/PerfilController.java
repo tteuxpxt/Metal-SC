@@ -5,6 +5,7 @@ import com.metalSpring.model.dto.PerfilDTO;
 import com.metalSpring.model.embeddable.Endereco;
 import com.metalSpring.model.entity.Revendedor;
 import com.metalSpring.model.entity.Usuario;
+import com.metalSpring.model.enums.UsuarioTipo;
 import com.metalSpring.repository.UsuarioRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -33,13 +34,14 @@ public class PerfilController {
             @RequestBody PerfilDTO payload) {
         return usuarioRepository.findById(id)
                 .map(usuario -> {
+                    boolean isAdmin = usuario.getTipo() == UsuarioTipo.ADMINISTRADOR;
                     if (payload.getNome() != null) {
                         usuario.setNome(payload.getNome());
                     }
-                    if (payload.getTelefone() != null) {
+                    if (!isAdmin && payload.getTelefone() != null) {
                         usuario.setTelefone(payload.getTelefone());
                     }
-                    if (payload.getEndereco() != null) {
+                    if (!isAdmin && payload.getEndereco() != null) {
                         if (usuario.getEndereco() == null) {
                             usuario.setEndereco(toEndereco(payload.getEndereco()));
                         } else {
@@ -62,11 +64,13 @@ public class PerfilController {
         dto.setId(usuario.getId());
         dto.setNome(usuario.getNome());
         dto.setEmail(usuario.getEmail());
-        dto.setTelefone(usuario.getTelefone());
         dto.setFotoUrl(usuario.getFotoUrl());
         dto.setTipo(usuario.getTipo());
         dto.setDataCadastro(usuario.getDataCadastro());
-        dto.setEndereco(toEnderecoDTO(usuario.getEndereco()));
+        if (usuario.getTipo() != UsuarioTipo.ADMINISTRADOR) {
+            dto.setTelefone(usuario.getTelefone());
+            dto.setEndereco(toEnderecoDTO(usuario.getEndereco()));
+        }
 
         if (usuario instanceof Revendedor revendedor) {
             dto.setNomeLoja(revendedor.getNomeLoja());

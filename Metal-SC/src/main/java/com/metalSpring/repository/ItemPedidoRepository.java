@@ -11,6 +11,7 @@ import java.util.List;
 @Repository
 public interface ItemPedidoRepository extends JpaRepository<ItemPedido, String> {
     List<ItemPedido> findByPecaId(String pecaId);
+    boolean existsByPecaId(String pecaId);
     List<ItemPedido> findByPedidoId(String pedidoId);
     List<ItemPedido> findByQuantidadeGreaterThanEqual(int quantidade);
     List<ItemPedido> findByPrecoUnitarioBetween(double min, double max);

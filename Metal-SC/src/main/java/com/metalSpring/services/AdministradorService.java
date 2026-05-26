@@ -39,6 +39,9 @@ public class AdministradorService {
     }
 
     public Administrador criar(Administrador admin) {
+        admin.setTipo(UsuarioTipo.ADMINISTRADOR);
+        admin.setTelefone(null);
+        admin.setEndereco(null);
         return adminRepository.save(admin);
     }
 

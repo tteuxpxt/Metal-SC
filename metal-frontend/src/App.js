@@ -199,7 +199,7 @@ const AppProvider = ({ children }) => {
         toNumberOrNull(product?.estoque) ?? toNumberOrNull(existing?.estoque);
       const maxEstoque = rawMaxEstoque ?? 1;
       if (maxEstoque <= 0) {
-        alert('Sem estoque disponivel para esta peca.');
+        alert('Sem estoque disponivel para esta peça.');
         return prev;
       }
       if (existing) {
@@ -372,6 +372,49 @@ const Header = () => {
 const HomePage = () => {
   const { setCurrentPage, openProduct, addToCart, user } = useApp();
   const [featuredProducts, setFeaturedProducts] = useState([]);
+  const beltItems = ['Motores', 'Freios', 'Suspensao', 'Eletrica', 'Carroceria', 'Transmissao', 'Acessorios'];
+  const heroStats = [
+    { label: 'Anuncios ativos', value: '10k+' },
+    { label: 'Revendedores SC', value: '480+' },
+    { label: 'Pedidos enviados', value: '32k+' }
+  ];
+  const storySteps = [
+    { title: 'Busque e compare', text: 'Filtros por cidade, marca e categoria.', icon: Search },
+    { title: 'Fale com o vendedor', text: 'Contato rapido e detalhes completos.', icon: Mail },
+    { title: 'Retire ou receba', text: 'Entrega combinada direto com a loja.', icon: Package }
+  ];
+  const adPopups = [
+    {
+      title: 'Farol Civic 2014 original',
+      price: 'R$ 680',
+      location: 'Florianopolis',
+      tag: 'Entrega 24h',
+      x: '18%',
+      y: '18%',
+      delay: '0s',
+      rotate: '-3deg'
+    },
+    {
+      title: 'Cambio automatico Corolla',
+      price: 'R$ 1.200',
+      location: 'Joinville',
+      tag: 'Peca verificada',
+      x: '72%',
+      y: '22%',
+      delay: '1.8s',
+      rotate: '2deg'
+    },
+    {
+      title: 'Kit freio ABS Prisma',
+      price: 'R$ 450',
+      location: 'Blumenau',
+      tag: 'Retirada local',
+      x: '30%',
+      y: '68%',
+      delay: '3.2s',
+      rotate: '1deg'
+    }
+  ];
   const handleAnnounceClick = () => {
     if (user?.tipo === 'REVENDEDOR') {
       setCurrentPage('dashboard');
@@ -393,11 +436,16 @@ const HomePage = () => {
           <div className="hero-text">
             <div className="hero-pill">Classificados automotivos em SC</div>
             <h1>Encontre a peça certa com rapidez e confiança.</h1>
-            <p>
-              Compra e venda de peças usadas com revendedores verificados, estoque real
-              e entrega segura.
-            </p>
-            <div className="hero-actions">
+              <p>
+                Compra e venda de peças usadas com revendedores verificados, estoque real
+                e entrega segura.
+              </p>
+              <div className="hero-badges">
+                <span className="hero-badge">Peças revisadas</span>
+                <span className="hero-badge">Revendedores SC</span>
+                <span className="hero-badge">Entrega assistida</span>
+              </div>
+              <div className="hero-actions">
               <button className="cta-btn" onClick={() => setCurrentPage('products')}>
                 Ver peças
               </button>
@@ -429,11 +477,63 @@ const HomePage = () => {
               </button>
             </div>
           </div>
-          <div className="hero-card">
-            <Package size={44} />
-            <h3>Mais de 10 mil peças em catálogo</h3>
-            <p>Atualizado diariamente por revendedores locais.</p>
+          <div className="hero-visual">
+            <div className="hero-plate" aria-hidden="true" />
+            <div className="hero-card">
+              <Package size={44} />
+              <h3>Mais de 10 mil peças em catálogo</h3>
+              <p>Atualizado diariamente por revendedores locais.</p>
+            </div>
+            <div className="ad-popups" aria-hidden="true">
+              {adPopups.map((ad) => (
+                <div
+                  key={ad.title}
+                  className="ad-pop"
+                  style={{
+                    '--x': ad.x,
+                    '--y': ad.y,
+                    '--delay': ad.delay,
+                    '--rotate': ad.rotate
+                  }}
+                >
+                  <div className="ad-pop-header">
+                    <span className="ad-tag">{ad.tag}</span>
+                    <span className="ad-price">{ad.price}</span>
+                  </div>
+                  <h4>{ad.title}</h4>
+                  <div className="ad-meta">
+                    <MapPin size={14} />
+                    <span>{ad.location}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
+        </div>
+      </section>
+
+      <section className="category-belt" aria-hidden="true">
+        <div className="container">
+          <div className="belt-track">
+            <div className="belt-row">
+              {[...beltItems, ...beltItems].map((item, index) => (
+                <span className="belt-item" key={`${item}-${index}`}>
+                  {item}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="hero-stats">
+        <div className="container stats-grid">
+          {heroStats.map((stat) => (
+            <div className="stat-card" key={stat.label}>
+              <span className="stat-label">{stat.label}</span>
+              <span className="stat-number">{stat.value}</span>
+            </div>
+          ))}
         </div>
       </section>
 
@@ -459,6 +559,29 @@ const HomePage = () => {
               <h3>Entrega rápida</h3>
               <p>Acompanhe o envio e receba com segurança.</p>
             </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="story-section">
+        <div className="container">
+          <div className="section-title">
+            <h2>Como funciona</h2>
+            <p>Do anuncio ao envio em poucos passos.</p>
+          </div>
+          <div className="story-grid">
+            {storySteps.map((step, index) => (
+              <div className="story-card" key={step.title}>
+                <div className="story-header">
+                  <span className="story-index">0{index + 1}</span>
+                  <div className="story-icon" aria-hidden="true">
+                    <step.icon size={18} />
+                  </div>
+                </div>
+                <h3>{step.title}</h3>
+                <p>{step.text}</p>
+              </div>
+            ))}
           </div>
         </div>
       </section>
@@ -580,7 +703,7 @@ const ProductsPage = () => {
           </select>
         </div>
         <div className="filter-group">
-          <label>Estado da peÃ§a</label>
+          <label>Estado da peça</label>
           <select value={selectedState} onChange={(e) => setSelectedState(e.target.value)}>
             <option value="">Todos</option>
             {states.map((state) => (
@@ -607,7 +730,7 @@ const ProductsPage = () => {
           />
         </div>
         <div className="filter-group">
-          <label>Preco minimo</label>
+          <label>Preço mínimo</label>
           <input
             type="number"
             min="0"
@@ -617,7 +740,7 @@ const ProductsPage = () => {
           />
         </div>
         <div className="filter-group">
-          <label>Preco maximo</label>
+          <label>Preço máximo</label>
           <input
             type="number"
             min="0"
@@ -1988,7 +2111,7 @@ const RevendedorDashboard = () => {
       </div>
 
       <div className="panel">
-        <h2>{editingPeca ? 'Editar peca' : 'Nova peca'}</h2>
+        <h2>{editingPeca ? 'Editar peça' : 'Nova peça'}</h2>
         <form onSubmit={handleSubmit} className="form-grid">
           <div className="form-group">
             <label>Nome</label>
@@ -2348,7 +2471,7 @@ const AdminPage = () => {
           <p>Administradores: {administradores.length}</p>
         </div>
         <div className="panel stat-card">
-          <h3>Pecas</h3>
+          <h3>Peças</h3>
           <div className="stat-value">{totalPecas}</div>
           <p>Vendas: {totalVendas}</p>
         </div>
@@ -2498,7 +2621,7 @@ const ProductCard = ({ product, onView, onAdd }) => {
     </div>
     <div className="product-body">
       <h3>{product.nome}</h3>
-      <p>{product.marca || 'Marca nao informada'}</p>
+      <p>{product.marca || 'Marca não informada'}</p>
       {product.endereco?.cidade && (
         <p>{product.endereco.cidade}{product.endereco.estado ? ` - ${product.endereco.estado}` : ''}</p>
       )}

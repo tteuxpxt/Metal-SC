@@ -8,9 +8,13 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @SpringBootApplication
 public class MetalScApplication {
+
+	private static final Logger logger = LoggerFactory.getLogger(MetalScApplication.class);
 
 	public static void main(String[] args) {
 		SpringApplication.run(MetalScApplication.class, args);
@@ -23,8 +27,7 @@ public class MetalScApplication {
 			@Value("${app.admin.enabled:true}") boolean adminEnabled,
 			@Value("${app.admin.email:admin@metal.com}") String adminEmail,
 			@Value("${app.admin.password:admin123}") String adminPassword,
-			@Value("${app.admin.nome:Administrador}") String adminNome,
-			@Value("${app.admin.telefone:}") String adminTelefone
+			@Value("${app.admin.nome:Administrador}") String adminNome
 	) {
 		return args -> {
 			if (!adminEnabled) {
@@ -36,19 +39,22 @@ public class MetalScApplication {
 				return;
 			}
 
-			if (usuarioRepository.existsByEmail(adminEmail)) {
-				return;
+			try {
+				if (usuarioRepository.existsByEmail(adminEmail)) {
+					return;
+				}
+
+				Administrador admin = new Administrador(
+						adminNome,
+						adminEmail,
+						passwordEncoder.encode(adminPassword)
+				);
+				admin.setAtivo(true);
+
+				usuarioRepository.save(admin);
+			} catch (Exception e) {
+				logger.warn("Admin seed ignorado: {}", e.getMessage());
 			}
-
-			Administrador admin = new Administrador(
-					adminNome,
-					adminEmail,
-					passwordEncoder.encode(adminPassword),
-					adminTelefone
-			);
-			admin.setAtivo(true);
-
-			usuarioRepository.save(admin);
 		};
 	}
 }

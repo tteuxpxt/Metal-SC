@@ -2,6 +2,7 @@ package com.metalSpring.services;
 
 import com.metalSpring.model.entity.Peca;
 import com.metalSpring.model.entity.Revendedor;
+import com.metalSpring.repository.ItemPedidoRepository;
 import com.metalSpring.repository.PecaRepository;
 import com.metalSpring.repository.RevendedorRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,6 +23,9 @@ public class PecaService {
     @Autowired
     private RevendedorRepository revendedorRepository;
 
+    @Autowired
+    private ItemPedidoRepository itemPedidoRepository;
+
     @Value("${app.taxa.limite:0}")
     private double limiteTaxaEmAberto;
 
@@ -39,45 +43,54 @@ public class PecaService {
 
     
 
+    private List<Peca> filtrarAtivas(List<Peca> pecas) {
+        return pecas.stream()
+                .filter(Peca::isDisponivel)
+                .toList();
+    }
+
     public List<Peca> listarTodas() {
         desativarPremiumExpirado();
-        return pecaRepository.findAllOrderByPremium();
+        return filtrarAtivas(pecaRepository.findAllOrderByPremium());
     }
 
     public Optional<Peca> buscarPorId(String id) {
-        return pecaRepository.findById(id);
+        return pecaRepository.findById(id)
+                .filter(Peca::isDisponivel);
     }
 
     public List<Peca> buscarPorNome(String nome) {
-        return pecaRepository.findByNomeContainingIgnoreCase(nome);
+        return filtrarAtivas(pecaRepository.findByNomeContainingIgnoreCase(nome));
     }
 
     public List<Peca> buscarPorMarca(String marca) {
-        return pecaRepository.findByMarcaIgnoreCase(marca);
+        return filtrarAtivas(pecaRepository.findByMarcaIgnoreCase(marca));
     }
 
     public List<Peca> buscarPorCategoria(String categoria) {
-        return pecaRepository.findByCategoriaIgnoreCase(categoria);
+        return filtrarAtivas(pecaRepository.findByCategoriaIgnoreCase(categoria));
     }
 
     public List<Peca> buscarPorCidade(String cidade) {
-        return pecaRepository.findByEnderecoCidadeIgnoreCase(cidade);
+        return filtrarAtivas(pecaRepository.findByEnderecoCidadeIgnoreCase(cidade));
     }
 
     public List<Peca> buscarPorEstadoEndereco(String estado) {
-        return pecaRepository.findByEnderecoEstadoIgnoreCase(estado);
+        return filtrarAtivas(pecaRepository.findByEnderecoEstadoIgnoreCase(estado));
     }
 
     public List<Peca> buscarPorCidadeEEstado(String cidade, String estado) {
-        return pecaRepository.findByEnderecoCidadeIgnoreCaseAndEnderecoEstadoIgnoreCase(cidade, estado);
+        return filtrarAtivas(
+                pecaRepository.findByEnderecoCidadeIgnoreCaseAndEnderecoEstadoIgnoreCase(cidade, estado)
+        );
     }
 
     public List<Peca> buscarPorRevendedor(String revendedorId) {
-        return pecaRepository.findByVendedorId(revendedorId);
+        return filtrarAtivas(pecaRepository.findByVendedorId(revendedorId));
     }
 
     public List<Peca> buscarDisponiveis() {
-        return pecaRepository.findByEstoqueGreaterThan(0);
+        return filtrarAtivas(pecaRepository.findByEstoqueGreaterThan(0));
     }
 
     public List<Peca> listarDisponiveis() {
@@ -248,6 +261,17 @@ public class PecaService {
         if (!pecaRepository.existsById(id)) {
             System.err.println("❌ [PecaService] Peça não encontrada: " + id);
             throw new RuntimeException("Peça não encontrada com ID: " + id);
+        }
+
+        Peca peca = pecaRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Peca nao encontrada com ID: " + id));
+
+        if (itemPedidoRepository.existsByPecaId(id)) {
+            peca.setDisponivel(false);
+            peca.setEstoque(0);
+            pecaRepository.save(peca);
+            System.out.println("[PecaService] Peca desativada (possui pedidos)");
+            return;
         }
 
         pecaRepository.deleteById(id);

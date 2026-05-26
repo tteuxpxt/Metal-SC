@@ -1,18 +1,20 @@
 package com.metalSpring.model.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.metalSpring.model.enums.UsuarioTipo;
 import jakarta.persistence.*;
 
 @Entity
 @DiscriminatorValue("ADMINISTRADOR")
+@JsonIgnoreProperties({"telefone", "endereco"})
 public class Administrador extends Usuario {
 
     public Administrador() {
         super();
     }
 
-    public Administrador(String nome, String email, String senhaHash, String telefone) {
-        super(nome, email, senhaHash, telefone, UsuarioTipo.ADMINISTRADOR);
+    public Administrador(String nome, String email, String senhaHash) {
+        super(nome, email, senhaHash, null, UsuarioTipo.ADMINISTRADOR);
     }
 
     public void bloquearUsuario(String usuarioId) {
