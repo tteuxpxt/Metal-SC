@@ -352,18 +352,6 @@ npm start
 
 ---
 
-# 11. Melhorias Futuras
-
-* Docker Compose
-* Deploy em nuvem
-* CI/CD
-* Testes automatizados
-* Profiles Spring Boot
-* JWT Authentication
-* Logs centralizados
-
----
-
 # Desenvolvedor
 
 Projeto desenvolvido para estudos, prática de arquitetura full stack e gerenciamento administrativo com Spring Boot + React.
