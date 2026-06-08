@@ -19,11 +19,11 @@ public class Revendedor extends Usuario {
 
     private Double avaliacaoMedia;
 
-    @Column(nullable = false)
-    private Double saldoTaxas = 0.0;
+    @Column(nullable = false, columnDefinition = "DOUBLE DEFAULT 0.0")
+private Double saldoTaxas = 0.0;
 
-    @Column(nullable = false)
-    private Boolean premiumAtivo = false;
+    @Column(nullable = false, columnDefinition = "TINYINT(1) DEFAULT 0")
+private Boolean premiumAtivo = false;
 
     private LocalDateTime premiumAte;
 

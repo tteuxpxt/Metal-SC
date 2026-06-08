@@ -1237,25 +1237,30 @@ const RegisterPage = () => {
     setLoading(true);
 
     try {
-      const payload =
-        formData.tipo === 'CLIENTE'
-          ? {
-              nome: formData.nome,
-              email: formData.email,
-              senha: formData.senha,
-              telefone: formData.telefone,
-              tipo: 'CLIENTE',
-              endereco: formData.endereco
-            }
-          : {
-              nome: formData.nome,
-              email: formData.email,
-              senha: formData.senha,
-              telefone: formData.telefone,
-              tipo: 'REVENDEDOR',
-              cnpj: formData.cnpj,
-              nomeLoja: formData.nomeLoja
-            };
+  const payload = formData.tipo === 'CLIENTE'
+  ? {
+      nome: formData.nome,
+      email: formData.email,
+      senha: formData.senha,
+      telefone: formData.telefone || null,
+      endereco: {
+        rua: formData.endereco.rua || null,
+        numero: formData.endereco.numero || null,
+        complemento: formData.endereco.complemento || null,
+        bairro: formData.endereco.bairro || null,
+        cidade: formData.endereco.cidade || null,
+        estado: formData.endereco.estado || null,
+        cep: formData.endereco.cep || null
+      }
+    }
+  : {
+      nome: formData.nome,
+      email: formData.email,
+      senha: formData.senha,
+      telefone: formData.telefone || null,
+      cnpj: formData.cnpj,
+      nomeLoja: formData.nomeLoja
+    };
 
       await registerUsuario(payload, formData.tipo);
       setSuccess(true);
