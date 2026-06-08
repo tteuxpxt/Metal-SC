@@ -209,6 +209,7 @@ const AppProvider = ({ children }) => {
     setUser(userData);
     if (token) {
       setAuthToken(token);
+      localStorage.setItem("metal_auth", token);
     }
     if (userData?.tipo === 'ADMINISTRADOR') {
       setCurrentPage('admin');
@@ -2798,7 +2799,7 @@ const RevendedorDashboard = () => {
   );
 };
 const AdminPage = () => {
-  const { user, setCurrentPage, logout } = useApp();
+  const { user, authToken, setCurrentPage, logout } = useApp();
   const [dashboard, setDashboard] = useState(null);
   const [usuarios, setUsuarios] = useState([]);
   const [revendedores, setRevendedores] = useState([]);
@@ -2832,10 +2833,10 @@ const AdminPage = () => {
   };
 
   useEffect(() => {
-    if (user?.tipo === 'ADMINISTRADOR') {
+    if (user?.tipo === "ADMINISTRADOR" && authToken) {
       loadData();
     }
-  }, [user]);
+  }, [user, authToken]);
 
   if (!user) {
     return (
