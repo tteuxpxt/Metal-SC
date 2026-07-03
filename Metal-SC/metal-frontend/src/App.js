@@ -1638,7 +1638,7 @@ const RegisterPage = () => {
             <input
               id="nome"
               name="nome"
-              placeholder="Mateus Peixoto"
+              placeholder="Seu nome completo"
               autoComplete="name"
               value={formData.nome}
               onChange={handleChange}
@@ -1651,7 +1651,7 @@ const RegisterPage = () => {
               id="email"
               name="email"
               type="email"
-              placeholder="nome@email.com"
+              placeholder="exemplo@email.com"
               autoComplete="email"
               value={formData.email}
               onChange={handleChange}
