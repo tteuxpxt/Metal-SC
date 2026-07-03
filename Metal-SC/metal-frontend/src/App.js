@@ -23,9 +23,12 @@ import {
   ShieldCheck,
   ShoppingCart,
   Star,
+  Store,
   Trash2,
   UploadCloud,
   User,
+  Eye,
+  EyeOff,
   X
 } from 'lucide-react';
 import './App.css';
@@ -1527,10 +1530,21 @@ const RegisterPage = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [showSenha, setShowSenha] = useState(false);
 
   const handleChange = (event) => {
     const { name, value } = event.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleTelefoneChange = (event) => {
+    const somenteDigitos = event.target.value.replace(/\D/g, '').slice(0, 11);
+    setFormData((prev) => ({ ...prev, telefone: somenteDigitos }));
+  };
+
+  const handleCnpjChange = (event) => {
+    const somenteDigitos = event.target.value.replace(/\D/g, '').slice(0, 14);
+    setFormData((prev) => ({ ...prev, cnpj: somenteDigitos }));
   };
 
   const handleEnderecoChange = (event) => {
@@ -1539,6 +1553,10 @@ const RegisterPage = () => {
       ...prev,
       endereco: { ...prev.endereco, [name]: value }
     }));
+  };
+
+  const selectTipo = (tipo) => {
+    setFormData((prev) => ({ ...prev, tipo }));
   };
 
   const handleSubmit = async (event) => {
@@ -1580,81 +1598,219 @@ const RegisterPage = () => {
   return (
     <div className="container auth-page">
       <div className="auth-card">
-        <h2>Criar conta</h2>
+        <div className="auth-header">
+          <div className="auth-header-icon">
+            <ShieldCheck size={18} />
+          </div>
+          <div>
+            <h2>Criar conta</h2>
+            <p className="auth-header-sub">Leva menos de 2 minutos</p>
+          </div>
+        </div>
+
         {error && <div className="error-message">{error}</div>}
         {success && <div className="success-message">Cadastro realizado!</div>}
-        <form onSubmit={handleSubmit}>
+
+        <form onSubmit={handleSubmit} className="auth-form">
+          <p className="form-section-label">Tipo de conta</p>
+          <div className="account-type-grid">
+            <button
+              type="button"
+              className={`account-type-card${formData.tipo === 'CLIENTE' ? ' active' : ''}`}
+              onClick={() => selectTipo('CLIENTE')}
+            >
+              <User size={20} />
+              <span>Cliente</span>
+            </button>
+            <button
+              type="button"
+              className={`account-type-card${formData.tipo === 'REVENDEDOR' ? ' active' : ''}`}
+              onClick={() => selectTipo('REVENDEDOR')}
+            >
+              <Store size={20} />
+              <span>Revendedor</span>
+            </button>
+          </div>
+
+          <p className="form-section-label">Dados da conta</p>
           <div className="form-group">
-            <label>Tipo de conta</label>
-            <select name="tipo" value={formData.tipo} onChange={handleChange}>
-              <option value="CLIENTE">Cliente</option>
-              <option value="REVENDEDOR">Revendedor</option>
-            </select>
+            <label htmlFor="nome">Nome completo</label>
+            <input
+              id="nome"
+              name="nome"
+              placeholder="Mateus Peixoto"
+              autoComplete="name"
+              value={formData.nome}
+              onChange={handleChange}
+              required
+            />
           </div>
           <div className="form-group">
-            <label>Nome</label>
-            <input name="nome" value={formData.nome} onChange={handleChange} required />
+            <label htmlFor="email">Email</label>
+            <input
+              id="email"
+              name="email"
+              type="email"
+              placeholder="nome@email.com"
+              autoComplete="email"
+              value={formData.email}
+              onChange={handleChange}
+              required
+            />
           </div>
           <div className="form-group">
-            <label>Email</label>
-            <input name="email" type="email" value={formData.email} onChange={handleChange} required />
+            <label htmlFor="senha">Senha</label>
+            <div className="password-field">
+              <input
+                id="senha"
+                name="senha"
+                type={showSenha ? 'text' : 'password'}
+                placeholder="Mínimo 8 caracteres"
+                autoComplete="new-password"
+                value={formData.senha}
+                onChange={handleChange}
+                minLength={8}
+                required
+              />
+              <button
+                type="button"
+                className="password-toggle"
+                onClick={() => setShowSenha((prev) => !prev)}
+                aria-label={showSenha ? 'Ocultar senha' : 'Mostrar senha'}
+              >
+                {showSenha ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
           </div>
           <div className="form-group">
-            <label>Senha</label>
-            <input name="senha" type="password" value={formData.senha} onChange={handleChange} required />
-          </div>
-          <div className="form-group">
-            <label>Telefone</label>
-            <input name="telefone" value={formData.telefone} onChange={handleChange} />
+            <label htmlFor="telefone">Telefone</label>
+            <input
+              id="telefone"
+              name="telefone"
+              type="tel"
+              inputMode="numeric"
+              placeholder="47999999999"
+              autoComplete="tel"
+              value={formData.telefone}
+              onChange={handleTelefoneChange}
+              maxLength={11}
+            />
           </div>
 
           {formData.tipo === 'REVENDEDOR' ? (
             <>
+              <p className="form-section-label">Dados da loja</p>
               <div className="form-group">
-                <label>CNPJ</label>
-                <input name="cnpj" value={formData.cnpj} onChange={handleChange} required />
+                <label htmlFor="cnpj">CNPJ</label>
+                <input
+                  id="cnpj"
+                  name="cnpj"
+                  type="tel"
+                  inputMode="numeric"
+                  placeholder="00000000000000"
+                  autoComplete=""
+                  value={formData.cnpj}
+                  onChange={handleCnpjChange}
+                  maxLength={14}
+                  required
+                />
               </div>
               <div className="form-group">
-                <label>Nome da loja</label>
-                <input name="nomeLoja" value={formData.nomeLoja} onChange={handleChange} required />
+                <label htmlFor="nomeLoja">Nome da loja</label>
+                <input
+                  id="nomeLoja"
+                  name="nomeLoja"
+                  placeholder="Metal Peças Joinville"
+                  value={formData.nomeLoja}
+                  onChange={handleChange}
+                  required
+                />
               </div>
             </>
           ) : (
             <>
+              <p className="form-section-label">Endereço</p>
               <div className="form-group">
-                <label>Rua</label>
-                <input name="rua" value={formData.endereco.rua} onChange={handleEnderecoChange} />
+                <label htmlFor="rua">Rua</label>
+                <input
+                  id="rua"
+                  name="rua"
+                  placeholder="Rua das Flores"
+                  autoComplete="address-line1"
+                  value={formData.endereco.rua}
+                  onChange={handleEnderecoChange}
+                />
               </div>
-              <div className="form-group">
-                <label>Numero</label>
-                <input name="numero" value={formData.endereco.numero} onChange={handleEnderecoChange} />
+              <div className="form-row form-row-2">
+                <div className="form-group">
+                  <label htmlFor="numero">Número</label>
+                  <input
+                    id="numero"
+                    name="numero"
+                    placeholder="123"
+                    value={formData.endereco.numero}
+                    onChange={handleEnderecoChange}
+                  />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="bairro">Bairro</label>
+                  <input
+                    id="bairro"
+                    name="bairro"
+                    placeholder="Centro"
+                    value={formData.endereco.bairro}
+                    onChange={handleEnderecoChange}
+                  />
+                </div>
               </div>
-              <div className="form-group">
-                <label>Bairro</label>
-                <input name="bairro" value={formData.endereco.bairro} onChange={handleEnderecoChange} />
-              </div>
-              <div className="form-group">
-                <label>Cidade</label>
-                <input name="cidade" value={formData.endereco.cidade} onChange={handleEnderecoChange} />
-              </div>
-              <div className="form-group">
-                <label>Estado</label>
-                <input name="estado" value={formData.endereco.estado} onChange={handleEnderecoChange} />
-              </div>
-              <div className="form-group">
-                <label>CEP</label>
-                <input name="cep" value={formData.endereco.cep} onChange={handleEnderecoChange} />
+              <div className="form-row form-row-3">
+                <div className="form-group">
+                  <label htmlFor="cidade">Cidade</label>
+                  <input
+                    id="cidade"
+                    name="cidade"
+                    placeholder="Joinville"
+                    value={formData.endereco.cidade}
+                    onChange={handleEnderecoChange}
+                  />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="estado">UF</label>
+                  <input
+                    id="estado"
+                    name="estado"
+                    placeholder="SC"
+                    maxLength={2}
+                    value={formData.endereco.estado}
+                    onChange={handleEnderecoChange}
+                  />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="cep">CEP</label>
+                  <input
+                    id="cep"
+                    name="cep"
+                    placeholder="89201-000"
+                    autoComplete="postal-code"
+                    value={formData.endereco.cep}
+                    onChange={handleEnderecoChange}
+                  />
+                </div>
               </div>
             </>
           )}
 
           <button className="cta-btn" type="submit" disabled={loading}>
-            {loading ? 'Salvando...' : 'Cadastrar'}
+            {loading ? 'Salvando...' : 'Criar conta'}
           </button>
         </form>
-        <button className="ghost-btn" onClick={() => setCurrentPage('login')}>
-          Ja tenho conta
-        </button>
+
+        <p className="auth-switch">
+          Já tem conta?{' '}
+          <button type="button" className="auth-switch-link" onClick={() => setCurrentPage('login')}>
+            Entrar
+          </button>
+        </p>
       </div>
     </div>
   );
