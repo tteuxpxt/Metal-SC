@@ -1,1 +1,6 @@
 uploads/usuarios/
+.idea/
+.vscode/
+backend/
+uploads/pecas/
+package-lock.json
