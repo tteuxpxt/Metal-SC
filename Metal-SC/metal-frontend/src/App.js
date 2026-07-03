@@ -1,23 +1,35 @@
 
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Bell,
+  CheckCircle2,
+  Clock3,
   Edit2,
   Filter,
   Flag,
+  ClipboardList,
+  ImagePlus,
+  LayoutDashboard,
   LogOut,
   Mail,
+  MapPinned,
   MapPin,
   Menu,
+  MessageSquare,
   Package,
   Phone,
   Plus,
   Search,
+  ShieldCheck,
   ShoppingCart,
+  Star,
   Trash2,
+  UploadCloud,
   User,
   X
 } from 'lucide-react';
 import './App.css';
+import { ToastProvider, useToast } from './components/Toast';
 import metalScLogo from './assets/Metal-SC-removebg-preview.png'; 
 import {
   createPedido,
@@ -46,6 +58,8 @@ import {
   fetchNegociacoesCliente,
   fetchNegociacoesRevendedor,
   fetchNegociacao,
+  fetchNotificacoes,
+  fetchNotificacoesContagem,
   enviarMensagemNegociacao,
   enviarContrapropostaNegociacao,
   aprovarNegociacao,
@@ -130,6 +144,61 @@ const getStatusPillClass = (status) => {
   return 'neutral';
 };
 
+const getInitials = (name = '') => {
+  const parts = String(name).trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  return parts.slice(0, 2).map((part) => part[0]).join('').toUpperCase();
+};
+
+const getPaymentStageLabel = (pedido) => {
+  if (pedido.statusPagamento === 'PAGAMENTO_CONFIRMADO' || pedido.status === 'PAGAMENTO_CONFIRMADO') {
+    return 'Confirmado';
+  }
+  if (pedido.status === 'PAGAMENTO_INFORMADO_CLIENTE') return 'Informado';
+  if (pedido.status === 'PAGAMENTO_LIBERADO' || pedido.status === 'PAGAMENTO_PENDENTE') {
+    return 'Aguardando';
+  }
+  return 'Pendente';
+};
+
+const getPedidoTotal = (pedido) => pedido.valorFinalNegociado || pedido.valorTotal;
+
+const getPedidoTitle = (pedido) => {
+  const itemNames = (pedido.itens || [])
+    .map((item) => item.pecaNome)
+    .filter(Boolean);
+
+  if (itemNames.length === 1) return itemNames[0];
+  if (itemNames.length > 1) {
+    const remaining = itemNames.length - 1;
+    return `${itemNames[0]} + ${remaining} ${remaining === 1 ? 'item' : 'itens'}`;
+  }
+  return `Pedido #${pedido.id?.substring(0, 8) || 'novo'}`;
+};
+
+const getNegotiationValue = (conversa) => {
+  const value =
+    conversa.valorFinalAcordado ??
+    conversa.valorNegociado ??
+    conversa.valorOriginal;
+  return Number.isFinite(Number(value)) ? Number(value) : null;
+};
+
+const isClientPaymentAction = (pedido) =>
+  pedido.status === 'PAGAMENTO_LIBERADO' || pedido.status === 'PAGAMENTO_PENDENTE';
+
+const isClientApprovalAction = (pedido) =>
+  Boolean(pedido.conversaId) &&
+  !pedido.aprovacaoCliente &&
+  ['AGUARDANDO_NEGOCIACAO', 'PENDENTE'].includes(pedido.status);
+
+const getClientOrderPriority = (pedido) => {
+  if (isClientPaymentAction(pedido)) return 0;
+  if (isClientApprovalAction(pedido)) return 1;
+  if (!['CONCLUIDO', 'ENTREGUE', 'CANCELADO'].includes(pedido.status)) return 2;
+  return 3;
+};
+
 const toNumberOrNull = (value) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
@@ -144,6 +213,7 @@ const resolveImageUrl = (url) => {
 };
 
 const AppProvider = ({ children }) => {
+  const toast = useToast();
   const [user, setUser] = useState(null);
   const [authToken, setAuthToken] = useState(null);
   const [cart, setCart] = useState([]);
@@ -257,12 +327,12 @@ const AppProvider = ({ children }) => {
         toNumberOrNull(product?.estoque) ?? toNumberOrNull(existing?.estoque);
       const maxEstoque = rawMaxEstoque ?? 1;
       if (maxEstoque <= 0) {
-        alert('Sem estoque disponivel para esta peça.');
+        toast.warning('Sem estoque disponível para esta peça.');
         return prev;
       }
       if (existing) {
         if (maxEstoque !== null && existing.quantidade >= maxEstoque) {
-          alert('Quantidade maxima em estoque atingida.');
+          toast.warning('Quantidade máxima em estoque atingida.');
           return prev;
         }
         return prev.map((item) =>
@@ -352,22 +422,59 @@ const AppShell = () => {
 };
 
 const App = () => (
-  <AppProvider>
-    <AppShell />
-  </AppProvider>
+  <ToastProvider>
+    <AppProvider>
+      <AppShell />
+    </AppProvider>
+  </ToastProvider>
 );
 
 const Header = () => {
-  const { user, cart, setCurrentPage, mobileMenuOpen, setMobileMenuOpen } = useApp();
+  const { user, cart, setCurrentPage, mobileMenuOpen, setMobileMenuOpen, openNegotiation } = useApp();
+  const [notificationCount, setNotificationCount] = useState(0);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
   const cartCount = cart.reduce((sum, item) => sum + item.quantidade, 0);
-  const handleAnnounceClick = () => {
-    if (user?.tipo === 'REVENDEDOR') {
-      setCurrentPage('dashboard');
-    } else {
-      setCurrentPage('register');
+  const notificationBadge = notificationCount > 9 ? '9+' : notificationCount;
+
+  const loadNotificationCount = useCallback(async () => {
+    if (!user?.id) return;
+    try {
+      const data = await fetchNotificacoesContagem(user.id);
+      setNotificationCount(Number(data?.total ?? data ?? 0));
+    } catch (err) {
+      console.error(err);
     }
-    setMobileMenuOpen(false);
+  }, [user?.id]);
+
+  const loadNotifications = async () => {
+    if (!user?.id) return;
+    setNotificationsLoading(true);
+    try {
+      const data = await fetchNotificacoes(user.id);
+      setNotifications(data || []);
+    } catch (err) {
+      console.error(err);
+      setNotifications([]);
+    } finally {
+      setNotificationsLoading(false);
+    }
   };
+
+  useEffect(() => {
+    if (!user?.id) {
+      setNotificationCount(0);
+      setNotifications([]);
+      setNotificationsOpen(false);
+      return undefined;
+    }
+
+    loadNotificationCount();
+    const timer = setInterval(loadNotificationCount, 45000);
+    return () => clearInterval(timer);
+  }, [user?.id, loadNotificationCount]);
+
   const handleUserClick = () => {
     if (user?.tipo === 'ADMINISTRADOR') {
       setCurrentPage('admin');
@@ -375,6 +482,41 @@ const Header = () => {
       setCurrentPage('dashboard');
     }
     setMobileMenuOpen(false);
+    setNotificationsOpen(false);
+  };
+  const handleAdminClick = () => {
+    setCurrentPage('admin');
+    setMobileMenuOpen(false);
+    setNotificationsOpen(false);
+  };
+  const handleHeaderSearch = () => {
+    setCurrentPage('products');
+    setMobileMenuOpen(false);
+    setNotificationsOpen(false);
+  };
+  const handleNotificationToggle = () => {
+    const nextOpen = !notificationsOpen;
+    setNotificationsOpen(nextOpen);
+    setMobileMenuOpen(false);
+    if (nextOpen) {
+      loadNotifications();
+    }
+  };
+  const handleOpenNotification = async (notification) => {
+    if (!notification?.conversaId || !user?.id) return;
+    try {
+      await marcarNegociacaoLida(notification.conversaId, user.id);
+    } catch (err) {
+      console.error(err);
+    }
+    setNotificationsOpen(false);
+    setNotifications((prev) =>
+      prev.filter((item) => item.conversaId !== notification.conversaId)
+    );
+    setNotificationCount((prev) =>
+      Math.max(0, prev - Number(notification.naoLidas || 1))
+    );
+    openNegotiation(notification.conversaId);
   };
 
   return (
@@ -385,25 +527,121 @@ const Header = () => {
           <span>Metal-SC</span>
         </div>
 
-        <nav className={`nav ${mobileMenuOpen ? 'mobile-open' : ''}`}>
-          <button className="nav-link" onClick={() => { setCurrentPage('home'); setMobileMenuOpen(false); }}>
-            Inicio
-          </button>
-          <button className="nav-link" onClick={() => { setCurrentPage('products'); setMobileMenuOpen(false); }}>
-            Peças
-          </button>
-          {(!user || user?.tipo === 'REVENDEDOR') && (
-            <button className="nav-link" onClick={handleAnnounceClick}>
-              Anunciar peças
+        <div className="header-center">
+          <nav className={`nav ${mobileMenuOpen ? 'mobile-open' : ''}`}>
+            <button className="nav-link" onClick={() => { setCurrentPage('home'); setMobileMenuOpen(false); }}>
+              Início
             </button>
-          )}
-        </nav>
+            <button className="nav-link" onClick={() => { setCurrentPage('products'); setMobileMenuOpen(false); }}>
+              Peças
+            </button>
+          </nav>
+
+          <div className="header-search" role="search">
+            <div className="header-search-field">
+              <Search size={17} />
+              <input
+                type="text"
+                placeholder="Buscar peça, marca ou modelo"
+                onFocus={handleHeaderSearch}
+              />
+            </div>
+            <div className="header-city-field">
+              <MapPin size={17} />
+              <select aria-label="Selecionar cidade em Santa Catarina" onChange={handleHeaderSearch}>
+                <option>Todas as cidades de SC</option>
+                <option>Florianópolis</option>
+                <option>Joinville</option>
+                <option>Blumenau</option>
+                <option>São José</option>
+                <option>Criciúma</option>
+                <option>Chapecó</option>
+                <option>Itajaí</option>
+                <option>Jaraguá do Sul</option>
+                <option>Palhoça</option>
+                <option>Lages</option>
+                <option>Balneário Camboriú</option>
+                <option>Brusque</option>
+                <option>Tubarão</option>
+                <option>São Bento do Sul</option>
+                <option>Caçador</option>
+                <option>Concórdia</option>
+                <option>Rio do Sul</option>
+                <option>Araranguá</option>
+                <option>Biguaçu</option>
+                <option>Navegantes</option>
+              </select>
+            </div>
+            <button className="header-search-submit" onClick={handleHeaderSearch} aria-label="Buscar peças">
+              <Search size={16} />
+              <span>Buscar</span>
+            </button>
+          </div>
+        </div>
 
         <div className="header-actions">
-          <button className="icon-btn" onClick={() => setCurrentPage('cart')}>
+          {user && (
+            <div className="notification-wrap">
+              <button
+                className={`icon-btn notification-btn ${notificationsOpen ? 'active' : ''}`}
+                onClick={handleNotificationToggle}
+                aria-label="Notificações"
+                aria-expanded={notificationsOpen}
+              >
+                <Bell size={20} />
+                {notificationCount > 0 && (
+                  <span className="notification-badge">{notificationBadge}</span>
+                )}
+              </button>
+
+              {notificationsOpen && (
+                <div className="notification-dropdown" role="menu" aria-label="Notificações recentes">
+                  <div className="notification-dropdown-head">
+                    <strong>Notificações</strong>
+                    <button type="button" className="ghost-btn small" onClick={loadNotifications}>
+                      Atualizar
+                    </button>
+                  </div>
+                  {notificationsLoading ? (
+                    <p className="notification-empty">Carregando...</p>
+                  ) : notifications.length === 0 ? (
+                    <p className="notification-empty">Nenhuma notificação nova</p>
+                  ) : (
+                    <div className="notification-list">
+                      {notifications.map((notification) => (
+                        <button
+                          key={`${notification.conversaId}-${notification.mensagemId}`}
+                          type="button"
+                          className="notification-item"
+                          onClick={() => handleOpenNotification(notification)}
+                        >
+                          <span className="notification-item-top">
+                            <strong>{notification.pecaNome || 'Negociação'}</strong>
+                            {notification.naoLidas > 1 && (
+                              <em>{notification.naoLidas}</em>
+                            )}
+                          </span>
+                          <span>{notification.remetenteNome}</span>
+                          <small>{notification.trechoMensagem}</small>
+                          <span className="notification-link">Ver negociação</span>
+                          <time>{formatDateTime(notification.dataEnvio)}</time>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+          <button className="icon-btn" onClick={() => setCurrentPage('cart')} aria-label="Carrinho">
             <ShoppingCart size={20} />
             {cartCount > 0 && <span className="cart-badge">{cartCount}</span>}
           </button>
+          {user?.tipo === 'ADMINISTRADOR' && (
+            <button className="icon-btn" onClick={handleAdminClick} aria-label="Administrador">
+              <ShieldCheck size={20} />
+            </button>
+          )}
           {user ? (
             <div className="user-pill" onClick={handleUserClick}>
               <User size={18} />
@@ -434,47 +672,88 @@ const Header = () => {
 const HomePage = () => {
   const { setCurrentPage, openProduct, addToCart, user } = useApp();
   const [featuredProducts, setFeaturedProducts] = useState([]);
-  const beltItems = ['Motores', 'Freios', 'Suspensao', 'Eletrica', 'Carroceria', 'Transmissao', 'Acessorios'];
   const heroStats = [
-    { label: 'Anuncios ativos', value: '10k+' },
+    { label: 'Anúncios ativos', value: '10k+' },
     { label: 'Revendedores SC', value: '480+' },
     { label: 'Pedidos enviados', value: '32k+' }
   ];
+  const featureItems = [
+    {
+      title: 'Qualidade garantida',
+      text: 'Cadastros completos, fotos e dados essenciais para comparar melhor.',
+      icon: CheckCircle2
+    },
+    {
+      title: 'Confiança local',
+      text: 'Perfis de revendedores, avaliações e atendimento focado em Santa Catarina.',
+      icon: ShieldCheck
+    },
+    {
+      title: 'Agilidade',
+      text: 'Busca por cidade e estoque para encontrar a peça certa sem perder tempo.',
+      icon: Clock3
+    }
+  ];
   const storySteps = [
     { title: 'Busque e compare', text: 'Filtros por cidade, marca e categoria.', icon: Search },
-    { title: 'Fale com o vendedor', text: 'Contato rapido e detalhes completos.', icon: Mail },
-    { title: 'Retire ou receba', text: 'Entrega combinada direto com a loja.', icon: Package }
+    { title: 'Negocie na plataforma', text: 'Combine valor, frete e condições dentro da negociação.', icon: MessageSquare },
+    { title: 'Retire ou receba', text: 'Acompanhe o pedido até a confirmação do pagamento.', icon: Package }
   ];
-  const adPopups = [
+  const securitySteps = [
     {
-      title: 'Farol Civic 2014 original',
-      price: 'R$ 680',
-      location: 'Florianopolis',
-      tag: 'Entrega 24h',
-      x: '18%',
-      y: '18%',
-      delay: '0s',
-      rotate: '-3deg'
+      title: 'Pedido bloqueado',
+      text: 'O pedido fica aguardando a negociação antes de liberar qualquer próxima etapa.',
+      icon: ShieldCheck
     },
     {
-      title: 'Cambio automatico Corolla',
-      price: 'R$ 1.200',
-      location: 'Joinville',
-      tag: 'Peca verificada',
-      x: '72%',
-      y: '22%',
-      delay: '1.8s',
-      rotate: '2deg'
+      title: 'Acordo confirmado',
+      text: 'Cliente e revendedor aprovam valor e condições antes do pagamento.',
+      icon: CheckCircle2
     },
     {
-      title: 'Kit freio ABS Prisma',
-      price: 'R$ 450',
-      location: 'Blumenau',
-      tag: 'Retirada local',
-      x: '30%',
-      y: '68%',
-      delay: '3.2s',
-      rotate: '1deg'
+      title: 'Pagamento informado',
+      text: 'O cliente informa o pagamento e o status fica pendente de conferência.',
+      icon: Clock3
+    },
+    {
+      title: 'Liberação segura',
+      text: 'Só depois da confirmação o pedido é liberado ao revendedor.',
+      icon: Package
+    }
+  ];
+  // Dados temporários até existir endpoint público de revendedores por cidade.
+  const regionalDealers = [
+    { cidade: 'Florianópolis', quantidade: 86 },
+    { cidade: 'Joinville', quantidade: 74 },
+    { cidade: 'Blumenau', quantidade: 58 },
+    { cidade: 'Itajaí', quantidade: 42 },
+    { cidade: 'Chapecó', quantidade: 39 },
+    { cidade: 'Criciúma', quantidade: 34 }
+  ];
+  const testimonials = [
+    {
+      nome: 'Rafael Martins',
+      cidade: 'Joinville',
+      nota: 5,
+      comentario: 'Achei um alternador usado com garantia e fechei tudo pelo chat.'
+    },
+    {
+      nome: 'Carla Hoffmann',
+      cidade: 'Blumenau',
+      nota: 5,
+      comentario: 'O filtro por cidade economizou tempo e a retirada foi no mesmo dia.'
+    },
+    {
+      nome: 'Auto Peças Costa',
+      cidade: 'Itajaí',
+      nota: 4,
+      comentario: 'O painel deixou pedidos e negociações bem mais fáceis de acompanhar.'
+    },
+    {
+      nome: 'Marcos Vieira',
+      cidade: 'Chapecó',
+      nota: 5,
+      comentario: 'Consegui comparar preço, estado da peça e reputação antes de comprar.'
     }
   ];
   const handleAnnounceClick = () => {
@@ -498,16 +777,16 @@ const HomePage = () => {
           <div className="hero-text">
             <div className="hero-pill">Classificados automotivos em SC</div>
             <h1>Encontre a peça certa com rapidez e confiança.</h1>
-              <p>
-                Compra e venda de peças usadas com revendedores verificados, estoque real
-                e entrega segura.
-              </p>
-              <div className="hero-badges">
-                <span className="hero-badge">Peças revisadas</span>
-                <span className="hero-badge">Revendedores SC</span>
-                <span className="hero-badge">Entrega assistida</span>
-              </div>
-              <div className="hero-actions">
+            <p>
+              Compra e venda de peças usadas com revendedores verificados, estoque real
+              e entrega segura.
+            </p>
+            <div className="hero-badges">
+              <span className="hero-badge">Peças revisadas</span>
+              <span className="hero-badge">Revendedores SC</span>
+              <span className="hero-badge">Entrega assistida</span>
+            </div>
+            <div className="hero-actions">
               <button className="cta-btn" onClick={() => setCurrentPage('products')}>
                 Ver peças
               </button>
@@ -517,72 +796,32 @@ const HomePage = () => {
                 </button>
               )}
             </div>
-            <div className="hero-search">
-              <div className="hero-search-field">
-                <Search size={18} />
-                <input
-                  type="text"
-                  placeholder="Buscar peça, marca ou modelo"
-                  onFocus={() => setCurrentPage('products')}
-                />
-              </div>
-              <div className="hero-search-field">
-                <MapPin size={18} />
-                <input
-                  type="text"
-                  placeholder="Cidade ou região em SC"
-                  onFocus={() => setCurrentPage('products')}
-                />
-              </div>
-              <button className="cta-btn" onClick={() => setCurrentPage('products')}>
-                Buscar
-              </button>
-            </div>
           </div>
           <div className="hero-visual">
-            <div className="hero-plate" aria-hidden="true" />
             <div className="hero-card">
-              <Package size={44} />
-              <h3>Mais de 10 mil peças em catálogo</h3>
-              <p>Atualizado diariamente por revendedores locais.</p>
-            </div>
-            <div className="ad-popups" aria-hidden="true">
-              {adPopups.map((ad) => (
-                <div
-                  key={ad.title}
-                  className="ad-pop"
-                  style={{
-                    '--x': ad.x,
-                    '--y': ad.y,
-                    '--delay': ad.delay,
-                    '--rotate': ad.rotate
-                  }}
-                >
-                  <div className="ad-pop-header">
-                    <span className="ad-tag">{ad.tag}</span>
-                    <span className="ad-price">{ad.price}</span>
-                  </div>
-                  <h4>{ad.title}</h4>
-                  <div className="ad-meta">
-                    <MapPin size={14} />
-                    <span>{ad.location}</span>
-                  </div>
+              <div className="hero-card-header">
+                <div className="hero-card-icon">
+                  <Package size={24} />
                 </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="category-belt" aria-hidden="true">
-        <div className="container">
-          <div className="belt-track">
-            <div className="belt-row">
-              {[...beltItems, ...beltItems].map((item, index) => (
-                <span className="belt-item" key={`${item}-${index}`}>
-                  {item}
-                </span>
-              ))}
+                <span>Catálogo verificado</span>
+              </div>
+              <h3>Mais de 10 mil peças prontas para comparar</h3>
+              <p>Estoque atualizado diariamente por revendedores locais em Santa Catarina.</p>
+              <div className="hero-card-grid">
+                <div>
+                  <strong>480+</strong>
+                  <span>Revendedores</span>
+                </div>
+                <div>
+                  <strong>24h</strong>
+                  <span>Atualização média</span>
+                </div>
+              </div>
+              <div className="hero-card-footer">
+                <span>Carroceria</span>
+                <span>Transmissão</span>
+                <span>Freios</span>
+              </div>
             </div>
           </div>
         </div>
@@ -606,21 +845,15 @@ const HomePage = () => {
             <p>Processo simples, seguro e transparente.</p>
           </div>
           <div className="features-grid">
-            <div className="feature-card">
-              <div className="feature-icon">QA</div>
-              <h3>Peças verificadas</h3>
-              <p>Cadastro revisado para garantir qualidade.</p>
-            </div>
-            <div className="feature-card">
-              <div className="feature-icon">OK</div>
-              <h3>Revendedores confiáveis</h3>
-              <p>Perfis avaliados e histórico de vendas.</p>
-            </div>
-            <div className="feature-card">
-              <div className="feature-icon">FAST</div>
-              <h3>Entrega rápida</h3>
-              <p>Acompanhe o envio e receba com segurança.</p>
-            </div>
+            {featureItems.map((feature) => (
+              <div className="feature-card" key={feature.title}>
+                <div className="feature-icon" aria-hidden="true">
+                  <feature.icon size={20} />
+                </div>
+                <h3>{feature.title}</h3>
+                <p>{feature.text}</p>
+              </div>
+            ))}
           </div>
         </div>
       </section>
@@ -629,7 +862,7 @@ const HomePage = () => {
         <div className="container">
           <div className="section-title">
             <h2>Como funciona</h2>
-            <p>Do anuncio ao envio em poucos passos.</p>
+            <p>Do anúncio ao envio em poucos passos.</p>
           </div>
           <div className="story-grid">
             {storySteps.map((step, index) => (
@@ -642,6 +875,47 @@ const HomePage = () => {
                 </div>
                 <h3>{step.title}</h3>
                 <p>{step.text}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="security-section">
+        <div className="container">
+          <div className="section-title">
+            <h2>Como garantimos sua segurança na compra</h2>
+            <p>O pedido só avança quando negociação, pagamento e confirmação estão alinhados.</p>
+          </div>
+          <div className="security-grid">
+            {securitySteps.map((step, index) => (
+              <div className="security-card" key={step.title}>
+                <div className="security-card-icon" aria-hidden="true">
+                  <step.icon size={18} />
+                </div>
+                <span>0{index + 1}</span>
+                <h3>{step.title}</h3>
+                <p>{step.text}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="region-section">
+        <div className="container">
+          <div className="section-title with-icon">
+            <MapPinned size={22} />
+            <div>
+              <h2>Revendedores por região</h2>
+              <p>Compre de lojas próximas e encontre peças em cidades estratégicas de SC.</p>
+            </div>
+          </div>
+          <div className="region-grid">
+            {regionalDealers.map((region) => (
+              <div className="region-card" key={region.cidade}>
+                <strong>{region.cidade}</strong>
+                <span>{region.quantidade} revendedores</span>
               </div>
             ))}
           </div>
@@ -662,6 +936,40 @@ const HomePage = () => {
                 onView={openProduct}
                 onAdd={addToCart}
               />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="testimonials-section">
+        <div className="container">
+          <div className="section-title">
+            <h2>Depoimentos</h2>
+            <p>Experiências recentes de quem compra e vende peças em Santa Catarina.</p>
+          </div>
+          <div className="testimonial-grid">
+            {testimonials.map((testimonial) => (
+              <article className="testimonial-card" key={`${testimonial.nome}-${testimonial.cidade}`}>
+                <div className="testimonial-head">
+                  <div className="testimonial-avatar" aria-hidden="true">
+                    {getInitials(testimonial.nome)}
+                  </div>
+                  <div>
+                    <strong>{testimonial.nome}</strong>
+                    <span>{testimonial.cidade}</span>
+                  </div>
+                </div>
+                <div className="testimonial-stars" aria-label={`${testimonial.nota} de 5 estrelas`}>
+                  {Array.from({ length: 5 }).map((_, index) => (
+                    <Star
+                      key={`${testimonial.nome}-${index}`}
+                      size={15}
+                      fill={index < testimonial.nota ? 'currentColor' : 'none'}
+                    />
+                  ))}
+                </div>
+                <p>{testimonial.comentario}</p>
+              </article>
             ))}
           </div>
         </div>
@@ -783,13 +1091,13 @@ const ProductsPage = () => {
           />
         </div>
         <div className="filter-group">
-          <label>Estado (UF)</label>
-          <input
-            type="text"
-            value={selectedUf}
-            onChange={(e) => setSelectedUf(e.target.value)}
-            placeholder="Ex: SC"
-          />
+          <label>UF</label>
+          <select value={selectedUf} onChange={(e) => setSelectedUf(e.target.value)}>
+            <option value="">Todas</option>
+            <option value="SC">SC</option>
+            <option value="PR">PR</option>
+            <option value="RS">RS</option>
+          </select>
         </div>
         <div className="filter-group">
           <label>Preço mínimo</label>
@@ -832,6 +1140,7 @@ const ProductsPage = () => {
 };
 const ProductDetailPage = () => {
   const { selectedProduct, addToCart, setCurrentPage, openProfile, user } = useApp();
+  const toast = useToast();
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [reportOpen, setReportOpen] = useState(false);
   const [reportReason, setReportReason] = useState('');
@@ -865,7 +1174,7 @@ const ProductDetailPage = () => {
 
   const openReport = () => {
     if (!user) {
-      alert('Faca login para denunciar uma imagem.');
+      toast.warning('Faça login para denunciar uma imagem.');
       setCurrentPage('login');
       return;
     }
@@ -884,9 +1193,9 @@ const ProductDetailPage = () => {
       });
       setReportOpen(false);
       setReportReason('');
-      alert('Denuncia enviada para moderacao.');
+      toast.success('Denúncia enviada para moderação.');
     } catch (err) {
-      alert(err.message || 'Erro ao enviar denuncia.');
+      toast.error(err.message || 'Erro ao enviar denúncia.');
     } finally {
       setReportLoading(false);
     }
@@ -969,14 +1278,14 @@ const ProductDetailPage = () => {
         <div className="detail-info">
           <h1>{selectedProduct.nome}</h1>
           <p className="detail-meta">
-            {selectedProduct.marca || 'Marca nao informada'} - {selectedProduct.categoria}
+            {selectedProduct.marca || 'Marca não informada'} - {selectedProduct.categoria}
           </p>
           {selectedProduct.endereco?.cidade && (
             <p className="detail-meta">
               {selectedProduct.endereco.cidade}{selectedProduct.endereco.estado ? ` - ${selectedProduct.endereco.estado}` : ''}
             </p>
           )}
-          <p className="detail-desc">{selectedProduct.descricao || 'Sem descricao.'}</p>
+          <p className="detail-desc">{selectedProduct.descricao || 'Sem descrição.'}</p>
           <div className="detail-price">{formatPrice(selectedProduct.preco)}</div>
           <div className="detail-actions">
             <button
@@ -1011,13 +1320,14 @@ const ProductDetailPage = () => {
 
 const CartPage = () => {
   const { cart, user, setCurrentPage, updateCartQty, removeFromCart, clearCart, openNegotiation } = useApp();
+  const toast = useToast();
   const [loading, setLoading] = useState(false);
 
   const total = cart.reduce((sum, item) => sum + item.preco * item.quantidade, 0);
 
   const handleCheckout = async () => {
     if (!user) {
-      alert('Faca login para finalizar a compra');
+      toast.warning('Faça login para finalizar a compra.');
       setCurrentPage('login');
       return;
     }
@@ -1029,7 +1339,7 @@ const CartPage = () => {
         firstItem?.revendedorId || firstItem?.vendedorId || firstItem?.vendedor?.id;
 
       if (!revendedorId) {
-        alert('Nao foi possivel identificar o revendedor do pedido.');
+        toast.error('Não foi possível identificar o revendedor do pedido.');
         return;
       }
 
@@ -1045,14 +1355,14 @@ const CartPage = () => {
         enderecoEntrega: {
           rua: 'Rua Exemplo',
           numero: '123',
-          cidade: 'Florianopolis',
+          cidade: 'Florianópolis',
           estado: 'SC',
           cep: '88000-000'
         }
       };
 
       const criado = await createPedido(pedido);
-      alert('Pedido criado. O chat de negociação foi aberto.');
+      toast.success('Pedido criado. O chat de negociação foi aberto.');
       clearCart();
       if (criado?.conversaId) {
         openNegotiation(criado.conversaId);
@@ -1061,7 +1371,7 @@ const CartPage = () => {
       }
     } catch (err) {
       console.error(err);
-      alert(err.message || 'Erro ao processar pedido');
+      toast.error(err.message || 'Erro ao processar pedido.');
     } finally {
       setLoading(false);
     }
@@ -1115,7 +1425,7 @@ const CartPage = () => {
           <button className="cta-btn" onClick={handleCheckout} disabled={loading}>
             {loading ? 'Abrindo chat...' : 'Confirmar no carrinho'}
           </button>
-          <span className="meta-note">O pagamento sera liberado apos aprovacao no chat.</span>
+          <span className="meta-note">O pagamento será liberado após aprovação no chat.</span>
         </div>
       </div>
     </div>
@@ -1144,13 +1454,13 @@ const LoginPage = () => {
       const token = response?.token || null;
 
       if (!token) {
-        throw new Error('Token nao retornado pelo backend');
+        throw new Error('Token não retornado pelo backend');
       }
 
       login(authenticatedUser, token);
       setCurrentPage(authenticatedUser?.tipo === 'ADMINISTRADOR' ? 'admin' : 'home');
     } catch (err) {
-      setError('Email ou senha invalidos');
+      setError('Email ou senha inválidos');
     } finally {
       setLoading(false);
     }
@@ -1355,7 +1665,7 @@ const DashboardPage = () => {
   if (!user) {
     return (
       <div className="container empty-state">
-        <h2>Faca login para acessar o painel</h2>
+        <h2>Faça login para acessar o painel</h2>
         <button className="cta-btn" onClick={() => setCurrentPage('login')}>
           Entrar
         </button>
@@ -1378,8 +1688,11 @@ const DashboardPage = () => {
           <LogOut size={16} /> Sair
         </button>
       </div>
-      <ProfileSettingsPanel />
-      {user.tipo === 'REVENDEDOR' ? <RevendedorDashboard /> : <ClienteDashboard />}
+      {user.tipo === 'REVENDEDOR' ? (
+        <RevendedorDashboard />
+      ) : (
+        <ClienteDashboard />
+      )}
     </div>
   );
 };
@@ -1547,7 +1860,7 @@ const ProfileSettingsPanel = () => {
             />
           </div>
           <div className="form-group">
-            <label>Numero</label>
+            <label>Número</label>
             <input
               name="numero"
               value={formData.endereco.numero}
@@ -1609,7 +1922,7 @@ const ProfilePage = () => {
   const [error, setError] = useState('');
   const [formData, setFormData] = useState({ nota: 5, comentario: '' });
 
-  const loadProfile = async () => {
+  const loadProfile = useCallback(async () => {
     if (!selectedProfile?.id) return;
     setLoading(true);
     setError('');
@@ -1632,16 +1945,16 @@ const ProfilePage = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedProfile?.id]);
 
   useEffect(() => {
     loadProfile();
-  }, [selectedProfile]);
+  }, [loadProfile]);
 
   if (!selectedProfile) {
     return (
       <div className="container empty-state">
-        <h2>Perfil nao selecionado.</h2>
+        <h2>Perfil não selecionado.</h2>
         <button
           className="cta-btn"
           onClick={() => setCurrentPage(user ? 'dashboard' : 'home')}
@@ -1697,7 +2010,7 @@ const ProfilePage = () => {
       await loadProfile();
     } catch (err) {
       console.error(err);
-      setError(err.message || 'Erro ao enviar comentario');
+      setError(err.message || 'Erro ao enviar comentário');
     } finally {
       setSending(false);
     }
@@ -1705,21 +2018,21 @@ const ProfilePage = () => {
 
   const handleDeleteComentario = async (comentarioId) => {
     if (!comentarioId) return;
-    if (!window.confirm('Excluir este comentario?')) return;
+    if (!window.confirm('Excluir este comentário?')) return;
     try {
       await deleteComentarioPerfil(comentarioId);
       await loadProfile();
     } catch (err) {
       console.error(err);
-      setError(err.message || 'Erro ao excluir comentario');
+      setError(err.message || 'Erro ao excluir comentário');
     }
   };
 
   let commentHint = 'Faca login para comentar.';
   if (user && profile && user.id === profile.id) {
-    commentHint = 'Voce esta vendo seu proprio perfil.';
+    commentHint = 'Você está vendo seu próprio perfil.';
   } else if (user && !canComment) {
-    commentHint = 'Seu tipo de usuario nao pode comentar este perfil.';
+    commentHint = 'Seu tipo de usuário não pode comentar este perfil.';
   }
 
   return (
@@ -1727,7 +2040,7 @@ const ProfilePage = () => {
       <div className="profile-header">
         <div>
           <h1>Perfil</h1>
-          <p>{profile?.nome || 'Usuario'}</p>
+          <p>{profile?.nome || 'Usuário'}</p>
         </div>
         <button
           className="ghost-btn"
@@ -1892,8 +2205,8 @@ const NegotiationInbox = ({ role }) => {
   const [conversas, setConversas] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  const loadConversas = async () => {
-    if (!user) return;
+  const loadConversas = useCallback(async () => {
+    if (!user?.id) return;
     setLoading(true);
     try {
       const data =
@@ -1906,53 +2219,545 @@ const NegotiationInbox = ({ role }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [role, user?.id]);
 
   useEffect(() => {
     loadConversas();
     const timer = setInterval(loadConversas, 5000);
     return () => clearInterval(timer);
-  }, [user, role]);
+  }, [loadConversas]);
 
   return (
     <div className="panel negotiation-inbox">
-      <div className="panel-header">
-        <h2>Negociações</h2>
+      <div className="panel-header section-panel-header">
+        <div>
+          <h2>Negociações</h2>
+          <p>
+            {conversas.length > 0
+              ? `${conversas.length} conversa${conversas.length > 1 ? 's' : ''} em andamento`
+              : 'Converse com o revendedor antes do pagamento'}
+          </p>
+        </div>
         <button className="ghost-btn" onClick={loadConversas} disabled={loading}>
           {loading ? 'Atualizando...' : 'Atualizar'}
         </button>
       </div>
       {conversas.length === 0 ? (
-        <p>Nenhuma negociação em andamento.</p>
+        <div className="empty-state compact negotiation-empty">
+          <MessageSquare size={34} />
+          <p>Nenhuma negociação em andamento.</p>
+        </div>
       ) : (
         <div className="negotiation-list">
-          {conversas.map((conversa) => (
-            <button
-              key={conversa.id}
-              className="negotiation-row"
-              onClick={() => openNegotiation(conversa.id)}
-            >
-              <span>
-                <strong>{conversa.pecaNome}</strong>
-                <small>
-                  {role === 'REVENDEDOR'
-                    ? `Cliente: ${conversa.clienteNome}`
-                    : `Revendedor: ${conversa.revendedorNome}`}
-                </small>
-              </span>
-              <span className="negotiation-row-side">
-                {conversa.naoLidas > 0 && (
-                  <span className="unread-badge">{conversa.naoLidas}</span>
-                )}
-                <span className={`status-pill ${getStatusPillClass(conversa.status)}`}>
-                  {formatStatusLabel(conversa.status)}
+          {conversas.map((conversa) => {
+            const contactName =
+              role === 'REVENDEDOR' ? conversa.clienteNome : conversa.revendedorNome;
+            const contactLabel = role === 'REVENDEDOR' ? 'Cliente' : 'Revendedor';
+            const negotiationValue = getNegotiationValue(conversa);
+            const negotiationDate = conversa.atualizadaEm || conversa.criadaEm;
+
+            return (
+              <button
+                key={conversa.id}
+                className="negotiation-row"
+                onClick={() => openNegotiation(conversa.id)}
+              >
+                <span className="negotiation-main">
+                  <strong>{conversa.pecaNome || 'Peça em negociação'}</strong>
+                  <small>{contactLabel}: {contactName || 'Não informado'}</small>
+                  <span className="negotiation-meta">
+                    {negotiationDate && <em>{formatDate(negotiationDate)}</em>}
+                    {negotiationValue !== null && <em>{formatPrice(negotiationValue)}</em>}
+                  </span>
                 </span>
-              </span>
-            </button>
-          ))}
+                <span className="negotiation-row-side">
+                  {conversa.naoLidas > 0 && (
+                    <span className="unread-badge">{conversa.naoLidas}</span>
+                  )}
+                  <span className={`status-pill ${getStatusPillClass(conversa.status)}`}>
+                    {formatStatusLabel(conversa.status)}
+                  </span>
+                </span>
+              </button>
+            );
+          })}
         </div>
       )}
     </div>
+  );
+};
+
+const OrderStageTabs = ({ pedido }) => {
+  const paymentComplete =
+    pedido.statusPagamento === 'PAGAMENTO_CONFIRMADO' ||
+    pedido.status === 'PAGAMENTO_CONFIRMADO';
+  const paymentReady =
+    pedido.status === 'PAGAMENTO_LIBERADO' ||
+    pedido.status === 'PAGAMENTO_PENDENTE' ||
+    pedido.status === 'PAGAMENTO_INFORMADO_CLIENTE';
+
+  const stages = [
+    {
+      key: 'cliente',
+      label: 'Cliente',
+      detail: pedido.aprovacaoCliente ? 'Aprovou' : 'Pendente',
+      complete: Boolean(pedido.aprovacaoCliente)
+    },
+    {
+      key: 'revendedor',
+      label: 'Revendedor',
+      detail: pedido.aprovacaoRevendedor ? 'Aprovou' : 'Pendente',
+      complete: Boolean(pedido.aprovacaoRevendedor)
+    },
+    {
+      key: 'pagamento',
+      label: 'Pagamento',
+      detail: getPaymentStageLabel(pedido),
+      complete: paymentComplete,
+      ready: paymentReady
+    }
+  ];
+  const firstOpenStage = stages.findIndex((stage) => !stage.complete);
+
+  return (
+    <div className="order-stage-tabs" role="tablist" aria-label="Etapas do pedido">
+      {stages.map((stage, index) => {
+        const current = !stage.complete && (stage.ready || index === firstOpenStage);
+        const statusClass = stage.complete ? 'active done' : current ? 'current' : 'inactive';
+
+        return (
+          <span
+            key={stage.key}
+            className={`order-stage-tab ${statusClass}`}
+            role="tab"
+            aria-selected={stage.complete || current}
+          >
+            <span className="order-stage-dot" aria-hidden="true">
+              {stage.complete ? <CheckCircle2 size={14} /> : index + 1}
+            </span>
+            <span>{stage.label}</span>
+            <strong>{stage.detail}</strong>
+          </span>
+        );
+      })}
+    </div>
+  );
+};
+
+const OrderCard = ({
+  pedido,
+  partyName,
+  partyType,
+  onOpenProfile,
+  onOpenNegotiation,
+  action,
+  note,
+  requiresAction = false,
+  actionHint = ''
+}) => {
+  const displayName = partyName || partyType || 'Contato';
+  const total = getPedidoTotal(pedido);
+  const title = getPedidoTitle(pedido);
+  const profileLabel = partyType
+    ? `Ver perfil do ${partyType.toLowerCase()}`
+    : 'Ver perfil';
+
+  return (
+    <article className={`order-card ${requiresAction ? 'needs-action' : ''}`}>
+      <div className="order-card-top">
+        <div className="order-party">
+          <div className="order-avatar" aria-hidden="true">
+            {getInitials(displayName)}
+          </div>
+          <div>
+            <div className="order-title-line">
+              <strong>{title}</strong>
+              {requiresAction && <span className="action-badge">Ação necessária</span>}
+            </div>
+            <span>
+              {partyType}: {displayName} · Pedido #{pedido.id?.substring(0, 8) || 'novo'} · {formatDate(pedido.dataCriacao) || 'Data não informada'}
+            </span>
+          </div>
+        </div>
+        <div className="order-highlight">
+          <span className={`status-pill ${getStatusPillClass(pedido.status)}`}>
+            {formatStatusLabel(pedido.status)}
+          </span>
+          <strong>{formatPrice(total)}</strong>
+        </div>
+      </div>
+
+      <OrderStageTabs pedido={pedido} />
+
+      <div className="order-card-actions">
+        <div className="order-actions-left">
+          {onOpenProfile && (
+            <button className="ghost-btn small" onClick={onOpenProfile}>
+              {profileLabel}
+            </button>
+          )}
+          {pedido.conversaId && onOpenNegotiation && (
+            <button
+              className={`ghost-btn small ${requiresAction ? 'soft-emphasis' : ''}`}
+              onClick={onOpenNegotiation}
+            >
+              Abrir chat
+            </button>
+          )}
+        </div>
+        <div className="order-actions-right">
+          {actionHint && <span className="meta-note action-hint">{actionHint}</span>}
+          {action || (!actionHint && note && <span className="meta-note">{note}</span>)}
+        </div>
+      </div>
+    </article>
+  );
+};
+
+const PecaForm = ({
+  editingPeca,
+  formData,
+  setFormData,
+  categories,
+  states,
+  imageFiles,
+  existingImages,
+  onEnderecoChange,
+  onNumberChange,
+  onAddFiles,
+  onRemoveExistingImage,
+  onRemoveNewFile,
+  onSubmit
+}) => {
+  const [dragActive, setDragActive] = useState(false);
+  const [cepLoading, setCepLoading] = useState(false);
+  const [cepStatus, setCepStatus] = useState('');
+  const totalImages = existingImages.length + imageFiles.length;
+  const remainingImages = Math.max(3 - totalImages, 0);
+
+  const newImagePreviews = useMemo(
+    () =>
+      imageFiles.map((file, index) => ({
+        file,
+        index,
+        url: URL.createObjectURL(file)
+      })),
+    [imageFiles]
+  );
+
+  useEffect(() => {
+    return () => {
+      newImagePreviews.forEach((preview) => URL.revokeObjectURL(preview.url));
+    };
+  }, [newImagePreviews]);
+
+  const handleCepLookup = async () => {
+    const cep = String(formData.endereco.cep || '').replace(/\D/g, '');
+    if (cep.length !== 8) {
+      setCepStatus('Informe um CEP com 8 dígitos.');
+      return;
+    }
+
+    setCepLoading(true);
+    setCepStatus('');
+    try {
+      const response = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+      const data = await response.json();
+
+      if (!response.ok || data.erro) {
+        setCepStatus('CEP não encontrado.');
+        return;
+      }
+
+      setFormData((prev) => ({
+        ...prev,
+        endereco: {
+          ...prev.endereco,
+          rua: data.logradouro || prev.endereco.rua,
+          bairro: data.bairro || prev.endereco.bairro,
+          cidade: data.localidade || prev.endereco.cidade,
+          estado: data.uf || prev.endereco.estado,
+          cep: data.cep || prev.endereco.cep
+        }
+      }));
+      setCepStatus('Endereço preenchido pelo CEP.');
+    } catch (err) {
+      setCepStatus('Não foi possível consultar o CEP agora.');
+    } finally {
+      setCepLoading(false);
+    }
+  };
+
+  const handleDrop = (event) => {
+    event.preventDefault();
+    setDragActive(false);
+    onAddFiles(event.dataTransfer.files);
+  };
+
+  return (
+    <form onSubmit={onSubmit} className="part-form">
+      <div className="form-section">
+        <div className="form-section-head">
+          <h3>Informações básicas</h3>
+          <p>Dados que ajudam o comprador a reconhecer a peça rapidamente.</p>
+        </div>
+        <div className="form-section-grid wide">
+          <div className="form-group">
+            <label>Nome</label>
+            <input
+              name="nome"
+              value={formData.nome}
+              onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
+              required
+            />
+          </div>
+          <div className="form-group span-2">
+            <label>Descricao</label>
+            <textarea
+              name="descricao"
+              rows="3"
+              value={formData.descricao}
+              onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
+            />
+          </div>
+          <div className="form-group">
+            <label>Categoria</label>
+            <select
+              name="categoria"
+              value={formData.categoria}
+              onChange={(e) => setFormData({ ...formData, categoria: e.target.value })}
+              required
+            >
+              <option value="">Selecione</option>
+              {categories.map((category) => (
+                <option key={category} value={category}>{category}</option>
+              ))}
+            </select>
+          </div>
+          <div className="form-group">
+            <label>Estado</label>
+            <select
+              name="estado"
+              value={formData.estado}
+              onChange={(e) => setFormData({ ...formData, estado: e.target.value })}
+            >
+              {states.map((state) => (
+                <option key={state} value={state}>{state}</option>
+              ))}
+            </select>
+          </div>
+          <div className="form-group">
+            <label>Marca</label>
+            <input
+              name="marca"
+              value={formData.marca}
+              onChange={(e) => setFormData({ ...formData, marca: e.target.value })}
+            />
+          </div>
+          <div className="form-group">
+            <label>Modelo do veículo</label>
+            <input
+              name="modeloVeiculo"
+              value={formData.modeloVeiculo}
+              onChange={(e) => setFormData({ ...formData, modeloVeiculo: e.target.value })}
+            />
+          </div>
+          <div className="form-group">
+            <label>Ano</label>
+            <input
+              type="number"
+              name="ano"
+              min="0"
+              step="1"
+              value={formData.ano}
+              onKeyDown={(e) => {
+                if (e.key === '-') e.preventDefault();
+              }}
+              onChange={onNumberChange}
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="form-section">
+        <div className="form-section-head">
+          <h3>Preço e estoque</h3>
+          <p>Valores usados no catálogo e no carrinho.</p>
+        </div>
+        <div className="form-section-grid compact">
+          <div className="form-group">
+            <label>Preço</label>
+            <input
+              type="number"
+              name="preco"
+              min="0"
+              step="0.01"
+              value={formData.preco}
+              onKeyDown={(e) => {
+                if (e.key === '-') e.preventDefault();
+              }}
+              onChange={onNumberChange}
+              required
+            />
+          </div>
+          <div className="form-group">
+            <label>Estoque</label>
+            <input
+              type="number"
+              name="estoque"
+              min="0"
+              step="1"
+              value={formData.estoque}
+              onKeyDown={(e) => {
+                if (e.key === '-') e.preventDefault();
+              }}
+              onChange={onNumberChange}
+              required
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="form-section">
+        <div className="form-section-head">
+          <h3>Localização</h3>
+          <p>Use o CEP para preencher rua, bairro, cidade e UF automaticamente.</p>
+        </div>
+        <div className="form-section-grid wide">
+          <div className="form-group cep-group">
+            <label>CEP</label>
+            <div className="inline-field">
+              <input
+                name="cep"
+                value={formData.endereco.cep}
+                onChange={onEnderecoChange}
+                onBlur={handleCepLookup}
+              />
+              <button type="button" className="ghost-btn small" onClick={handleCepLookup} disabled={cepLoading}>
+                {cepLoading ? 'Buscando...' : 'Buscar'}
+              </button>
+            </div>
+            {cepStatus && <small>{cepStatus}</small>}
+          </div>
+          <div className="form-group">
+            <label>Rua</label>
+            <input
+              name="rua"
+              value={formData.endereco.rua}
+              onChange={onEnderecoChange}
+            />
+          </div>
+          <div className="form-group">
+            <label>Número</label>
+            <input
+              name="numero"
+              value={formData.endereco.numero}
+              onChange={onEnderecoChange}
+            />
+          </div>
+          <div className="form-group">
+            <label>Bairro</label>
+            <input
+              name="bairro"
+              value={formData.endereco.bairro}
+              onChange={onEnderecoChange}
+            />
+          </div>
+          <div className="form-group">
+            <label>Cidade</label>
+            <input
+              name="cidade"
+              value={formData.endereco.cidade}
+              onChange={onEnderecoChange}
+            />
+          </div>
+          <div className="form-group">
+            <label>Estado (UF)</label>
+            <input
+              name="estado"
+              value={formData.endereco.estado}
+              onChange={onEnderecoChange}
+              maxLength="2"
+            />
+          </div>
+          <div className="form-group span-2">
+            <label>Complemento</label>
+            <input
+              name="complemento"
+              value={formData.endereco.complemento}
+              onChange={onEnderecoChange}
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="form-section">
+        <div className="form-section-head">
+          <h3>Fotos</h3>
+          <p>Adicione até 3 imagens da peça.</p>
+        </div>
+        <label
+          className={`dropzone ${dragActive ? 'drag-active' : ''}`}
+          onDragEnter={(event) => {
+            event.preventDefault();
+            setDragActive(true);
+          }}
+          onDragOver={(event) => event.preventDefault()}
+          onDragLeave={() => setDragActive(false)}
+          onDrop={handleDrop}
+        >
+          <input
+            type="file"
+            accept="image/*"
+            multiple
+            onChange={(event) => {
+              onAddFiles(event.target.files);
+              event.target.value = '';
+            }}
+          />
+          <UploadCloud size={28} />
+          <span>Arraste imagens aqui ou clique para selecionar</span>
+          <small>{remainingImages} de 3 espaços disponíveis.</small>
+        </label>
+
+        {(existingImages.length > 0 || newImagePreviews.length > 0) && (
+          <div className="image-preview-grid">
+            {existingImages.map((url) => (
+              <div key={url} className="image-preview-card">
+                <img src={resolveImageUrl(url)} alt="Imagem da peça" />
+                <button
+                  type="button"
+                  className="icon-btn"
+                  onClick={() => onRemoveExistingImage(url)}
+                  aria-label="Remover imagem"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            ))}
+            {newImagePreviews.map((preview) => (
+              <div key={`${preview.file.name}-${preview.index}`} className="image-preview-card">
+                <img src={preview.url} alt={preview.file.name} />
+                <button
+                  type="button"
+                  className="icon-btn"
+                  onClick={() => onRemoveNewFile(preview.index)}
+                  aria-label="Remover imagem"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="form-actions">
+        <button className="cta-btn" type="submit">
+          {editingPeca ? 'Salvar alterações' : 'Cadastrar peça'}
+        </button>
+      </div>
+    </form>
   );
 };
 
@@ -2000,8 +2805,11 @@ const NegotiationChat = ({ conversaId }) => {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
 
-  const loadConversa = async () => {
-    if (!conversaId || !user) return;
+  const loadConversa = useCallback(async () => {
+    if (!conversaId || !user?.id) {
+      setLoading(false);
+      return;
+    }
     try {
       const data = await fetchNegociacao(conversaId, user.id);
       setConversa(data);
@@ -2011,14 +2819,14 @@ const NegotiationChat = ({ conversaId }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [conversaId, user?.id]);
 
   useEffect(() => {
     setLoading(true);
     loadConversa();
     const timer = setInterval(loadConversa, 3000);
     return () => clearInterval(timer);
-  }, [conversaId, user]);
+  }, [loadConversa]);
 
   const send = async (event) => {
     event.preventDefault();
@@ -2162,20 +2970,42 @@ const NegotiationChat = ({ conversaId }) => {
 
 const ClienteDashboard = () => {
   const { user, openProfile, openNegotiation } = useApp();
+  const toast = useToast();
+  const [activeSection, setActiveSection] = useState('overview');
   const [pedidos, setPedidos] = useState([]);
+  const [conversas, setConversas] = useState([]);
+  const [loadingPedidos, setLoadingPedidos] = useState(false);
+  const [loadingConversas, setLoadingConversas] = useState(false);
   const [payingId, setPayingId] = useState(null);
 
-  const loadPedidosCliente = () => {
-    if (user) {
+  const loadPedidosCliente = useCallback(() => {
+    if (user?.id) {
+      setLoadingPedidos(true);
       fetchPedidosByCliente(user.id)
         .then((data) => setPedidos(data))
-        .catch((err) => console.error(err));
+        .catch((err) => console.error(err))
+        .finally(() => setLoadingPedidos(false));
+    } else {
+      setPedidos([]);
     }
-  };
+  }, [user?.id]);
+
+  const loadConversasCliente = useCallback(() => {
+    if (user?.id) {
+      setLoadingConversas(true);
+      fetchNegociacoesCliente(user.id)
+        .then((data) => setConversas(data || []))
+        .catch((err) => console.error(err))
+        .finally(() => setLoadingConversas(false));
+    } else {
+      setConversas([]);
+    }
+  }, [user?.id]);
 
   useEffect(() => {
     loadPedidosCliente();
-  }, [user]);
+    loadConversasCliente();
+  }, [loadPedidosCliente, loadConversasCliente]);
 
   const handleInformarPagamento = async (pedidoId) => {
     if (!pedidoId) return;
@@ -2184,74 +3014,190 @@ const ClienteDashboard = () => {
     try {
       await informarPagamentoPedido(pedidoId, user.id);
       loadPedidosCliente();
-      alert('Pagamento informado. Aguarde a confirmação do revendedor ou admin.');
+      toast.success('Pagamento informado. Aguarde a confirmação do revendedor ou admin.');
     } catch (err) {
-      alert(err.message || 'Erro ao informar pagamento');
+      toast.error(err.message || 'Erro ao informar pagamento.');
     } finally {
       setPayingId(null);
     }
   };
 
-  return (
-    <div className="dashboard-grid">
-      <NegotiationInbox role="CLIENTE" />
-      <div className="panel">
-      <h2>Meus pedidos</h2>
-      {pedidos.length === 0 ? (
-        <p>Nenhum pedido realizado ainda.</p>
-      ) : (
-        <div className="order-list">
-          {pedidos.map((pedido) => (
-            <div key={pedido.id} className="order-card">
-              <div>
-                <strong>Pedido #{pedido.id?.substring(0, 8)}</strong>
-                <p>Revendedor: {pedido.revendedorNome || 'Revendedor'}</p>
-                <p>{formatDate(pedido.dataCriacao)}</p>
-                {pedido.revendedorId && (
-                  <button
-                    className="ghost-btn small"
-                    onClick={() =>
-                      openProfile({ id: pedido.revendedorId, tipo: 'REVENDEDOR' })
-                    }
-                  >
-                    Ver perfil do revendedor
-                  </button>
-                )}
-                {pedido.conversaId && (
-                  <button
-                    className="ghost-btn small"
-                    onClick={() => openNegotiation(pedido.conversaId)}
-                  >
-                    Abrir chat
-                  </button>
-                )}
-              </div>
-              <div className="order-status">
-                <span className={`status-pill ${getStatusPillClass(pedido.status)}`}>
-                  {formatStatusLabel(pedido.status)}
-                </span>
-                <strong>{formatPrice(pedido.valorFinalNegociado || pedido.valorTotal)}</strong>
-                <div className="order-timeline">
-                  <span className={pedido.aprovacaoCliente ? 'done' : ''}>Cliente</span>
-                  <span className={pedido.aprovacaoRevendedor ? 'done' : ''}>Revendedor</span>
-                  <span className={pedido.statusPagamento === 'PAGAMENTO_CONFIRMADO' ? 'done' : ''}>
-                    Pagamento
-                  </span>
-                </div>
-                {(pedido.status === 'PAGAMENTO_LIBERADO' || pedido.status === 'PAGAMENTO_PENDENTE') && (
-                  <button
-                    className="cta-btn small"
-                    onClick={() => handleInformarPagamento(pedido.id)}
-                    disabled={payingId === pedido.id}
-                  >
-                    {payingId === pedido.id ? 'Informando...' : 'Pagamento efetuado'}
-                  </button>
-                )}
-              </div>
-            </div>
-          ))}
+  const orderedPedidos = useMemo(
+    () =>
+      [...pedidos].sort((a, b) => {
+        const priorityDiff = getClientOrderPriority(a) - getClientOrderPriority(b);
+        if (priorityDiff !== 0) return priorityDiff;
+        return new Date(b.dataCriacao || 0).getTime() - new Date(a.dataCriacao || 0).getTime();
+      }),
+    [pedidos]
+  );
+  const actionCount = orderedPedidos.filter(
+    (pedido) => isClientPaymentAction(pedido) || isClientApprovalAction(pedido)
+  ).length;
+  const pedidosAbertos = pedidos.filter(
+    (pedido) => !['CONCLUIDO', 'ENTREGUE', 'CANCELADO'].includes(pedido.status)
+  ).length;
+  const valorPedidos = pedidos.reduce(
+    (sum, pedido) => sum + Number(getPedidoTotal(pedido) || 0),
+    0
+  );
+  const clientTabs = [
+    { id: 'overview', label: 'Visão geral', icon: LayoutDashboard },
+    { id: 'orders', label: 'Meus pedidos', icon: ClipboardList, count: pedidos.length },
+    { id: 'negotiations', label: 'Negociações', icon: MessageSquare, count: conversas.length },
+    { id: 'profile', label: 'Meu perfil', icon: User }
+  ];
+
+  const renderOrders = () => (
+    <div className="panel dealer-section-panel client-orders-panel">
+        <div className="panel-header section-panel-header">
+          <div>
+            <h2>Meus pedidos</h2>
+            <p>
+              {actionCount > 0
+                ? `${actionCount} pedido${actionCount > 1 ? 's' : ''} precisa${actionCount > 1 ? 'm' : ''} da sua atenção`
+                : 'Pedidos em acompanhamento'}
+            </p>
+          </div>
+          <button className="ghost-btn" onClick={loadPedidosCliente} disabled={loadingPedidos}>
+            {loadingPedidos ? 'Atualizando...' : 'Atualizar'}
+          </button>
         </div>
-      )}
+        {loadingPedidos ? (
+          <p>Carregando pedidos...</p>
+        ) : pedidos.length === 0 ? (
+          <div className="empty-state compact">
+            <ClipboardList size={34} />
+            <p>Nenhum pedido realizado ainda.</p>
+          </div>
+        ) : (
+          <div className="order-list">
+            {orderedPedidos.map((pedido) => {
+              const canInformPayment = isClientPaymentAction(pedido);
+              const needsApproval = isClientApprovalAction(pedido);
+              const requiresAction = canInformPayment || needsApproval;
+              const actionHint = canInformPayment
+                ? 'Sua vez: informe o pagamento após concluir.'
+                : needsApproval
+                  ? 'Sua vez: revise a negociação no chat.'
+                  : '';
+
+              return (
+                <OrderCard
+                  key={pedido.id}
+                  pedido={pedido}
+                  partyName={pedido.revendedorNome || 'Revendedor'}
+                  partyType="Revendedor"
+                  onOpenProfile={
+                    pedido.revendedorId
+                      ? () => openProfile({ id: pedido.revendedorId, tipo: 'REVENDEDOR' })
+                      : null
+                  }
+                  onOpenNegotiation={
+                    pedido.conversaId ? () => openNegotiation(pedido.conversaId) : null
+                  }
+                  action={
+                    canInformPayment ? (
+                      <button
+                        className="cta-btn small"
+                        onClick={() => handleInformarPagamento(pedido.id)}
+                        disabled={payingId === pedido.id}
+                      >
+                        {payingId === pedido.id ? 'Informando...' : 'Pagamento efetuado'}
+                      </button>
+                    ) : null
+                  }
+                  requiresAction={requiresAction}
+                  actionHint={actionHint}
+                />
+              );
+            })}
+          </div>
+        )}
+    </div>
+  );
+
+  const renderOverview = () => (
+    <div className="dealer-section-stack">
+      <div className="summary-grid dealer-summary-grid client-summary-grid">
+        <div className="stat-card dashboard-stat">
+          <span className="stat-label">Pedidos</span>
+          <strong className="stat-number">{pedidos.length}</strong>
+          <p>{pedidosAbertos} em andamento</p>
+        </div>
+        <div className="stat-card dashboard-stat">
+          <span className="stat-label">Ação necessária</span>
+          <strong className="stat-number">{actionCount}</strong>
+          <p>{actionCount > 0 ? 'Prioridade no topo da lista' : 'Tudo em dia por aqui'}</p>
+        </div>
+        <div className="stat-card dashboard-stat">
+          <span className="stat-label">Negociações</span>
+          <strong className="stat-number">{loadingConversas ? '...' : conversas.length}</strong>
+          <p>Conversas abertas com revendedores</p>
+        </div>
+        <div className="stat-card dashboard-stat">
+          <span className="stat-label">Valor em pedidos</span>
+          <strong className="stat-number">{formatPrice(valorPedidos)}</strong>
+          <p>Total dos pedidos listados</p>
+        </div>
+      </div>
+
+      <div className="panel quick-actions-panel">
+        <div>
+          <h2>Ações rápidas</h2>
+          <p>Atalhos para acompanhar compras e resolver pendências.</p>
+        </div>
+        <div className="quick-actions">
+          <button
+            className={actionCount > 0 ? 'cta-btn' : 'ghost-btn'}
+            onClick={() => setActiveSection('orders')}
+          >
+            <ClipboardList size={16} /> {actionCount > 0 ? 'Resolver pendências' : 'Ver pedidos'}
+          </button>
+          <button className="ghost-btn" onClick={() => setActiveSection('negotiations')}>
+            <MessageSquare size={16} /> Abrir negociações
+          </button>
+          <button className="ghost-btn" onClick={() => setActiveSection('profile')}>
+            <User size={16} /> Editar perfil
+          </button>
+        </div>
+      </div>
+
+      {actionCount > 0 ? renderOrders() : <NegotiationInbox role="CLIENTE" />}
+    </div>
+  );
+
+  const renderActiveSection = () => {
+    if (activeSection === 'orders') return renderOrders();
+    if (activeSection === 'negotiations') return <NegotiationInbox role="CLIENTE" />;
+    if (activeSection === 'profile') return <ProfileSettingsPanel />;
+    return renderOverview();
+  };
+
+  return (
+    <div className="dealer-dashboard client-dashboard">
+      <div className="dealer-tabs" role="tablist" aria-label="Navegação do painel do cliente">
+        {clientTabs.map((tab) => {
+          const TabIcon = tab.icon;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              className={`dealer-tab ${activeSection === tab.id ? 'active' : ''}`}
+              onClick={() => setActiveSection(tab.id)}
+              role="tab"
+              aria-selected={activeSection === tab.id}
+            >
+              <TabIcon size={17} />
+              <span>{tab.label}</span>
+              {typeof tab.count === 'number' && <strong>{tab.count}</strong>}
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="dealer-content">
+        {renderActiveSection()}
       </div>
     </div>
   );
@@ -2259,6 +3205,8 @@ const ClienteDashboard = () => {
 
 const RevendedorDashboard = () => {
   const { user, openProfile, openNegotiation } = useApp();
+  const toast = useToast();
+  const [activeSection, setActiveSection] = useState('overview');
   const [pecas, setPecas] = useState([]);
   const [pedidos, setPedidos] = useState([]);
   const [loadingPedidos, setLoadingPedidos] = useState(false);
@@ -2290,16 +3238,21 @@ const RevendedorDashboard = () => {
   const categories = ['MOTOR', 'SUSPENSAO', 'FREIOS', 'ELETRICA', 'CARROCERIA', 'TRANSMISSAO'];
   const states = ['NOVO', 'USADO', 'RECONDICIONADO', 'DEFEITUOSO'];
 
-  const loadPecas = () => {
-    if (user) {
+  const loadPecas = useCallback(() => {
+    if (user?.id) {
       fetchPecasByRevendedor(user.id)
         .then((data) => setPecas(data))
         .catch((err) => console.error(err));
+    } else {
+      setPecas([]);
     }
-  };
+  }, [user?.id]);
 
-  const loadPedidos = async () => {
-    if (!user) return;
+  const loadPedidos = useCallback(async () => {
+    if (!user?.id) {
+      setPedidos([]);
+      return;
+    }
     setLoadingPedidos(true);
     try {
       const data = await fetchPedidosByRevendedor(user.id);
@@ -2309,12 +3262,12 @@ const RevendedorDashboard = () => {
     } finally {
       setLoadingPedidos(false);
     }
-  };
+  }, [user?.id]);
 
   useEffect(() => {
     loadPecas();
     loadPedidos();
-  }, [user]);
+  }, [loadPecas, loadPedidos]);
 
   useEffect(() => {
     if (editingPeca) {
@@ -2366,28 +3319,28 @@ const RevendedorDashboard = () => {
   }, [editingPeca]);
 
   const handleDelete = async (pecaId) => {
-    if (window.confirm('Deseja excluir esta peca?')) {
+    if (window.confirm('Deseja excluir esta peça?')) {
       try {
         await deletePeca(pecaId);
         loadPecas();
       } catch (err) {
         console.error(err);
-        alert('Erro ao excluir a peca.');
+        toast.error('Erro ao excluir a peça.');
       }
     }
   };
 
-  const handleFilesChange = (event) => {
-    const files = Array.from(event.target.files || []);
-    const allowed = 3 - existingImages.length;
+  const handleAddImageFiles = (fileList) => {
+    const files = Array.from(fileList || []).filter((file) => file.type?.startsWith('image/'));
+    const allowed = 3 - existingImages.length - imageFiles.length;
     if (allowed <= 0) {
-      alert('Limite de 3 imagens por peca');
+      toast.warning('Limite de 3 imagens por peça.');
       return;
     }
     if (files.length > allowed) {
-      alert('Limite de 3 imagens por peca');
+      toast.warning('Limite de 3 imagens por peça.');
     }
-    setImageFiles(files.slice(0, Math.max(allowed, 0)));
+    setImageFiles((prev) => [...prev, ...files.slice(0, Math.max(allowed, 0))]);
   };
 
   const handleRemoveExistingImage = async (url) => {
@@ -2397,7 +3350,7 @@ const RevendedorDashboard = () => {
       setExistingImages((prev) => prev.filter((img) => img !== url));
     } catch (err) {
       console.error(err);
-      alert('Erro ao remover a imagem.');
+      toast.error('Erro ao remover a imagem.');
     }
   };
 
@@ -2430,7 +3383,7 @@ const RevendedorDashboard = () => {
       const ano = formData.ano ? Number(formData.ano) : null;
 
       if (preco < 0 || estoque < 0 || (ano !== null && ano < 0)) {
-        alert('Preço, estoque e ano não podem ser negativos.');
+        toast.warning('Preço, estoque e ano não podem ser negativos.');
         return;
       }
 
@@ -2450,7 +3403,7 @@ const RevendedorDashboard = () => {
             await uploadPecaImagem(pecaId, file);
           } catch (uploadErr) {
             console.error(uploadErr);
-            alert(uploadErr.message || 'Erro ao enviar imagem');
+            toast.error(uploadErr.message || 'Erro ao enviar imagem.');
             break;
           }
         }
@@ -2459,10 +3412,11 @@ const RevendedorDashboard = () => {
       setEditingPeca(null);
       setImageFiles([]);
       loadPecas();
-      alert(editingPeca ? 'Peca atualizada!' : 'Peca cadastrada!');
+      setActiveSection('catalog');
+      toast.success(editingPeca ? 'Peça atualizada!' : 'Peça cadastrada!');
     } catch (err) {
       console.error(err);
-      alert(err.message || 'Erro de conexao');
+      toast.error(err.message || 'Erro de conexão.');
     }
   };
 
@@ -2473,343 +3427,267 @@ const RevendedorDashboard = () => {
     try {
       await confirmarPagamentoPedido(pedidoId);
       await loadPedidos();
-      alert('Pagamento confirmado.');
+      toast.success('Pagamento confirmado.');
     } catch (err) {
       console.error(err);
-      alert(err.message || 'Erro ao confirmar pagamento');
+      toast.error(err.message || 'Erro ao confirmar pagamento.');
     } finally {
       setConfirmingId(null);
     }
   };
 
-  return (
-    <div className="dashboard-grid">
-      <NegotiationInbox role="REVENDEDOR" />
-      <div className="panel">
-        <div className="panel-header">
+  const startNewPeca = () => {
+    setEditingPeca(null);
+    setActiveSection('new');
+  };
+
+  const startEditPeca = (peca) => {
+    setEditingPeca(peca);
+    setActiveSection('new');
+  };
+
+  const totalEstoque = pecas.reduce((sum, peca) => sum + Number(peca.estoque || 0), 0);
+  const pedidosAbertos = pedidos.filter(
+    (pedido) => !['CONCLUIDO', 'ENTREGUE', 'CANCELADO'].includes(pedido.status)
+  ).length;
+  const valorPedidos = pedidos.reduce(
+    (sum, pedido) => sum + Number(pedido.valorFinalNegociado || pedido.valorTotal || 0),
+    0
+  );
+
+  const dealerTabs = [
+    { id: 'overview', label: 'Visão geral', icon: LayoutDashboard },
+    { id: 'catalog', label: 'Minhas peças', icon: Package, count: pecas.length },
+    { id: 'orders', label: 'Pedidos recebidos', icon: ClipboardList, count: pedidos.length },
+    { id: 'negotiations', label: 'Negociações', icon: MessageSquare },
+    { id: 'new', label: editingPeca ? 'Editar peça' : 'Cadastrar nova peça', icon: ImagePlus }
+  ];
+
+  const renderOverview = () => (
+    <div className="dealer-section-stack">
+      <div className="summary-grid dealer-summary-grid">
+        <div className="stat-card dashboard-stat">
+          <span className="stat-label">Peças cadastradas</span>
+          <strong className="stat-number">{pecas.length}</strong>
+          <p>{totalEstoque} unidades em estoque</p>
+        </div>
+        <div className="stat-card dashboard-stat">
+          <span className="stat-label">Pedidos recebidos</span>
+          <strong className="stat-number">{pedidos.length}</strong>
+          <p>{pedidosAbertos} em andamento</p>
+        </div>
+        <div className="stat-card dashboard-stat">
+          <span className="stat-label">Valor em pedidos</span>
+          <strong className="stat-number">{formatPrice(valorPedidos)}</strong>
+          <p>Total bruto dos pedidos listados</p>
+        </div>
+      </div>
+
+      <div className="panel quick-actions-panel">
+        <div>
+          <h2>Ações rápidas</h2>
+          <p>Atalhos para as rotinas mais usadas do painel.</p>
+        </div>
+        <div className="quick-actions">
+          <button className="cta-btn" onClick={startNewPeca}>
+            <Plus size={16} /> Cadastrar peça
+          </button>
+          <button className="ghost-btn" onClick={() => setActiveSection('orders')}>
+            <ClipboardList size={16} /> Ver pedidos
+          </button>
+          <button className="ghost-btn" onClick={() => setActiveSection('negotiations')}>
+            <MessageSquare size={16} /> Abrir negociações
+          </button>
+        </div>
+      </div>
+
+      <ProfileSettingsPanel />
+    </div>
+  );
+
+  const renderCatalog = () => (
+    <div className="panel dealer-section-panel">
+      <div className="panel-header section-panel-header">
+        <div>
           <h2>Minhas peças</h2>
-          <button className="ghost-btn" onClick={() => setEditingPeca(null)}>
-            <Plus size={16} /> Nova peça
-          </button>
+          <p>Gerencie catálogo, estoque e preços publicados.</p>
         </div>
-        {pecas.length === 0 ? (
+        <button className="ghost-btn" onClick={startNewPeca}>
+          <Plus size={16} /> Nova peça
+        </button>
+      </div>
+      {pecas.length === 0 ? (
+        <div className="empty-state compact">
+          <Package size={34} />
           <p>Nenhuma peça cadastrada.</p>
-        ) : (
-          <div className="table">
-            {pecas.map((peca) => (
-              <div key={peca.id} className="table-row">
-                <div>
-                  <strong>{peca.nome}</strong>
-                  <p>{peca.categoria}</p>
-                </div>
-                <div className="table-actions">
-                  <span>{formatPrice(peca.preco)}</span>
-                  <button className="icon-btn" onClick={() => setEditingPeca(peca)}>
-                    <Edit2 size={16} />
-                  </button>
-                  <button className="icon-btn" onClick={() => handleDelete(peca.id)}>
-                    <Trash2 size={16} />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div className="panel">
-        <div className="panel-header">
-          <h2>Pedidos recebidos</h2>
-          <button className="ghost-btn" onClick={loadPedidos} disabled={loadingPedidos}>
-            {loadingPedidos ? 'Atualizando...' : 'Atualizar'}
-          </button>
+          <button className="cta-btn small" onClick={startNewPeca}>Cadastrar primeira peça</button>
         </div>
-        {loadingPedidos ? (
-          <p>Carregando pedidos...</p>
-        ) : pedidos.length === 0 ? (
+      ) : (
+        <div className="table catalog-table">
+          {pecas.map((peca) => (
+            <div key={peca.id} className="table-row catalog-row">
+              <div>
+                <strong>{peca.nome}</strong>
+                <p>{peca.categoria || 'Sem categoria'} · {peca.modeloVeiculo || 'Modelo não informado'}</p>
+              </div>
+              <div className="table-actions">
+                <span className="catalog-price">{formatPrice(peca.preco)}</span>
+                <span className="meta-chip">Estoque: {peca.estoque ?? 0}</span>
+                <button className="icon-btn" onClick={() => startEditPeca(peca)} aria-label="Editar peça">
+                  <Edit2 size={16} />
+                </button>
+                <button className="icon-btn" onClick={() => handleDelete(peca.id)} aria-label="Excluir peça">
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
+  const renderOrders = () => (
+    <div className="panel dealer-section-panel">
+      <div className="panel-header section-panel-header">
+        <div>
+          <h2>Pedidos recebidos</h2>
+          <p>Acompanhe aprovação, pagamento e conversa de cada pedido.</p>
+        </div>
+        <button className="ghost-btn" onClick={loadPedidos} disabled={loadingPedidos}>
+          {loadingPedidos ? 'Atualizando...' : 'Atualizar'}
+        </button>
+      </div>
+      {loadingPedidos ? (
+        <p>Carregando pedidos...</p>
+      ) : pedidos.length === 0 ? (
+        <div className="empty-state compact">
+          <ClipboardList size={34} />
           <p>Nenhum pedido recebido.</p>
-        ) : (
-          <div className="order-list">
-            {pedidos.map((pedido) => {
-              const canConfirmPayment = pedido.status === 'PAGAMENTO_INFORMADO_CLIENTE';
-              return (
-                <div key={pedido.id} className="order-card">
-                  <div>
-                    <strong>Pedido #{pedido.id?.substring(0, 8)}</strong>
-                    <p>Cliente: {pedido.clienteNome || 'Cliente'}</p>
-                    <p>{formatDate(pedido.dataCriacao)}</p>
-                    {pedido.clienteId && (
-                      <button
-                        className="ghost-btn small"
-                        onClick={() =>
-                          openProfile({ id: pedido.clienteId, tipo: 'CLIENTE' })
-                        }
-                      >
-                        Ver perfil do cliente
-                      </button>
-                    )}
-                    {pedido.conversaId && (
-                      <button
-                        className="ghost-btn small"
-                        onClick={() => openNegotiation(pedido.conversaId)}
-                      >
-                        Abrir chat
-                      </button>
-                    )}
-                  </div>
-                  <div className="order-status">
-                    <span className={`status-pill ${getStatusPillClass(pedido.status)}`}>
-                      {formatStatusLabel(pedido.status)}
-                    </span>
-                    <strong>{formatPrice(pedido.valorFinalNegociado || pedido.valorTotal)}</strong>
-                    <div className="order-timeline">
-                      <span className={pedido.aprovacaoCliente ? 'done' : ''}>Cliente</span>
-                      <span className={pedido.aprovacaoRevendedor ? 'done' : ''}>Revendedor</span>
-                      <span className={pedido.statusPagamento === 'PAGAMENTO_CONFIRMADO' ? 'done' : ''}>
-                        Pagamento
-                      </span>
-                    </div>
-                    {canConfirmPayment ? (
-                      <button
-                        className="cta-btn small"
-                        onClick={() => handleConfirmarPagamento(pedido.id)}
-                        disabled={confirmingId === pedido.id}
-                      >
-                        {confirmingId === pedido.id ? 'Confirmando...' : 'Confirmar pagamento'}
-                      </button>
-                    ) : pedido.status === 'PAGAMENTO_CONFIRMADO' ? (
-                      <span className="meta-note">Pagamento confirmado</span>
-                    ) : (
-                      <span className="meta-note">
-                        {pedido.status === 'PAGAMENTO_LIBERADO'
-                          ? 'Aguardando cliente informar pagamento'
-                          : 'Aguardando negociação'}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
+        </div>
+      ) : (
+        <div className="order-list dealer-order-list">
+          {pedidos.map((pedido) => {
+            const canConfirmPayment = pedido.status === 'PAGAMENTO_INFORMADO_CLIENTE';
+            const note =
+              pedido.status === 'PAGAMENTO_CONFIRMADO'
+                ? 'Pagamento confirmado'
+                : pedido.status === 'PAGAMENTO_LIBERADO'
+                  ? 'Aguardando cliente informar pagamento'
+                  : 'Aguardando negociação';
+
+            return (
+              <OrderCard
+                key={pedido.id}
+                pedido={pedido}
+                partyName={pedido.clienteNome || 'Cliente'}
+                partyType="Cliente"
+                onOpenProfile={
+                  pedido.clienteId ? () => openProfile({ id: pedido.clienteId, tipo: 'CLIENTE' }) : null
+                }
+                onOpenNegotiation={
+                  pedido.conversaId ? () => openNegotiation(pedido.conversaId) : null
+                }
+                action={
+                  canConfirmPayment ? (
+                    <button
+                      className="cta-btn small"
+                      onClick={() => handleConfirmarPagamento(pedido.id)}
+                      disabled={confirmingId === pedido.id}
+                    >
+                      {confirmingId === pedido.id ? 'Confirmando...' : 'Confirmar pagamento'}
+                    </button>
+                  ) : null
+                }
+                note={!canConfirmPayment ? note : ''}
+              />
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+
+  const renderForm = () => (
+    <div className="panel dealer-section-panel">
+      <div className="panel-header section-panel-header">
+        <div>
+          <h2>{editingPeca ? 'Editar peça' : 'Cadastrar nova peça'}</h2>
+          <p>Organize as informações em etapas para publicar com menos retrabalho.</p>
+        </div>
+      </div>
+      <PecaForm
+        editingPeca={editingPeca}
+        formData={formData}
+        setFormData={setFormData}
+        categories={categories}
+        states={states}
+        imageFiles={imageFiles}
+        existingImages={existingImages}
+        onEnderecoChange={handleEnderecoChange}
+        onNumberChange={handleNonNegativeNumberChange}
+        onAddFiles={handleAddImageFiles}
+        onRemoveExistingImage={handleRemoveExistingImage}
+        onRemoveNewFile={handleRemoveNewFile}
+        onSubmit={handleSubmit}
+      />
+    </div>
+  );
+
+  const renderActiveSection = () => {
+    if (activeSection === 'catalog') return renderCatalog();
+    if (activeSection === 'orders') return renderOrders();
+    if (activeSection === 'negotiations') return <NegotiationInbox role="REVENDEDOR" />;
+    if (activeSection === 'new') return renderForm();
+    return renderOverview();
+  };
+
+  return (
+    <div className="dealer-dashboard">
+      <div className="dealer-tabs" role="tablist" aria-label="Navegação do painel do revendedor">
+        {dealerTabs.map((tab) => {
+          const TabIcon = tab.icon;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              className={`dealer-tab ${activeSection === tab.id ? 'active' : ''}`}
+              onClick={() => setActiveSection(tab.id)}
+              role="tab"
+              aria-selected={activeSection === tab.id}
+            >
+              <TabIcon size={17} />
+              <span>{tab.label}</span>
+              {typeof tab.count === 'number' && <strong>{tab.count}</strong>}
+            </button>
+          );
+        })}
       </div>
 
-      <div className="panel">
-        <h2>{editingPeca ? 'Editar peça' : 'Nova peça'}</h2>
-        <form onSubmit={handleSubmit} className="form-grid">
-          <div className="form-group">
-            <label>Nome</label>
-            <input
-              name="nome"
-              value={formData.nome}
-              onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
-              required
-            />
-          </div>
-          <div className="form-group">
-            <label>Descricao</label>
-            <textarea
-              name="descricao"
-              rows="3"
-              value={formData.descricao}
-              onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
-            />
-          </div>
-          <div className="form-group">
-            <label>Categoria</label>
-            <select
-              name="categoria"
-              value={formData.categoria}
-              onChange={(e) => setFormData({ ...formData, categoria: e.target.value })}
-              required
-            >
-              <option value="">Selecione</option>
-              {categories.map((category) => (
-                <option key={category} value={category}>{category}</option>
-              ))}
-            </select>
-          </div>
-          <div className="form-group">
-            <label>Estado</label>
-            <select
-              name="estado"
-              value={formData.estado}
-              onChange={(e) => setFormData({ ...formData, estado: e.target.value })}
-            >
-              {states.map((state) => (
-                <option key={state} value={state}>{state}</option>
-              ))}
-            </select>
-          </div>
-          <div className="form-group">
-            <label>Preco</label>
-            <input
-              type="number"
-              name="preco"
-              min="0"
-              step="0.01"
-              value={formData.preco}
-              onKeyDown={(e) => {
-                if (e.key === '-') e.preventDefault();
-              }}
-              onChange={handleNonNegativeNumberChange}
-              required
-            />
-          </div>
-          <div className="form-group">
-            <label>Estoque</label>
-            <input
-              type="number"
-              name="estoque"
-              min="0"
-              step="1"
-              value={formData.estoque}
-              onKeyDown={(e) => {
-                if (e.key === '-') e.preventDefault();
-              }}
-              onChange={handleNonNegativeNumberChange}
-              required
-            />
-          </div>
-          <div className="form-group">
-            <label>Ano</label>
-            <input
-              type="number"
-              name="ano"
-              min="0"
-              step="1"
-              value={formData.ano}
-              onKeyDown={(e) => {
-                if (e.key === '-') e.preventDefault();
-              }}
-              onChange={handleNonNegativeNumberChange}
-            />
-          </div>
-          <div className="form-group">
-            <label>Marca</label>
-            <input
-              name="marca"
-              value={formData.marca}
-              onChange={(e) => setFormData({ ...formData, marca: e.target.value })}
-            />
-          </div>
-          <div className="form-group">
-            <label>Modelo veiculo</label>
-            <input
-              name="modeloVeiculo"
-              value={formData.modeloVeiculo}
-              onChange={(e) => setFormData({ ...formData, modeloVeiculo: e.target.value })}
-            />
-          </div>
-          <div className="form-group">
-            <label>Rua</label>
-            <input
-              name="rua"
-              value={formData.endereco.rua}
-              onChange={handleEnderecoChange}
-            />
-          </div>
-          <div className="form-group">
-            <label>Numero</label>
-            <input
-              name="numero"
-              value={formData.endereco.numero}
-              onChange={handleEnderecoChange}
-            />
-          </div>
-          <div className="form-group">
-            <label>Bairro</label>
-            <input
-              name="bairro"
-              value={formData.endereco.bairro}
-              onChange={handleEnderecoChange}
-            />
-          </div>
-          <div className="form-group">
-            <label>Cidade</label>
-            <input
-              name="cidade"
-              value={formData.endereco.cidade}
-              onChange={handleEnderecoChange}
-            />
-          </div>
-          <div className="form-group">
-            <label>Estado (UF)</label>
-            <input
-              name="estado"
-              value={formData.endereco.estado}
-              onChange={handleEnderecoChange}
-            />
-          </div>
-          <div className="form-group">
-            <label>CEP</label>
-            <input
-              name="cep"
-              value={formData.endereco.cep}
-              onChange={handleEnderecoChange}
-            />
-          </div>
-          <div className="form-group">
-            <label>Complemento</label>
-            <input
-              name="complemento"
-              value={formData.endereco.complemento}
-              onChange={handleEnderecoChange}
-            />
-          </div>
-          <div className="form-group">
-            <label>Fotos da peça</label>
-            <input type="file" accept="image/*" multiple onChange={handleFilesChange} />
-            <small>Máximo de 3 imagens por peça.</small>
-            {(existingImages.length > 0 || imageFiles.length > 0) && (
-              <div className="image-list">
-                {existingImages.map((url) => (
-                  <div key={url} className="image-chip">
-                    <img src={resolveImageUrl(url)} alt="Imagem da peça" />
-                    <button
-                      type="button"
-                      className="icon-btn"
-                      onClick={() => handleRemoveExistingImage(url)}
-                    >
-                      <X size={14} />
-                    </button>
-                  </div>
-                ))}
-                {imageFiles.map((file, index) => (
-                  <div key={`${file.name}-${index}`} className="image-chip">
-                    <span>{file.name}</span>
-                    <button
-                      type="button"
-                      className="icon-btn"
-                      onClick={() => handleRemoveNewFile(index)}
-                    >
-                      <X size={14} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-          <button className="cta-btn" type="submit">
-            {editingPeca ? 'Salvar alterações' : 'Cadastrar peça'}
-          </button>
-        </form>
+      <div className="dealer-content">
+        {renderActiveSection()}
       </div>
     </div>
   );
 };
 const AdminPage = () => {
   const { user, authToken, setCurrentPage, logout } = useApp();
+  const toast = useToast();
   const [dashboard, setDashboard] = useState(null);
   const [usuarios, setUsuarios] = useState([]);
   const [revendedores, setRevendedores] = useState([]);
   const [alertas, setAlertas] = useState([]);
   const [alertStats, setAlertStats] = useState(null);
   const [alertFilters, setAlertFilters] = useState({ usuarioId: '', data: '', tipo: '', status: '' });
+  const alertFiltersRef = useRef(alertFilters);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const loadData = async () => {
+  useEffect(() => {
+    alertFiltersRef.current = alertFilters;
+  }, [alertFilters]);
+
+  const loadData = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
@@ -2818,7 +3696,7 @@ const AdminPage = () => {
         fetchAdminUsuarios(),
         fetchAdminRevendedores(),
         fetchModeracaoStats(),
-        fetchModeracaoAlertas(alertFilters)
+        fetchModeracaoAlertas(alertFiltersRef.current)
       ]);
       setDashboard(dash);
       setUsuarios(users || []);
@@ -2830,13 +3708,13 @@ const AdminPage = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (user?.tipo === "ADMINISTRADOR" && authToken) {
       loadData();
     }
-  }, [user, authToken]);
+  }, [user?.tipo, authToken, loadData]);
 
   if (!user) {
     return (
@@ -2872,7 +3750,7 @@ const AdminPage = () => {
       await deleteAdminUsuario(usuario.id);
       loadData();
     } catch (err) {
-      alert(err.message || 'Erro ao remover usuario');
+      toast.error(err.message || 'Erro ao remover usuário.');
     }
   };
 
@@ -2883,7 +3761,7 @@ const AdminPage = () => {
       await deleteAdminRevendedor(revendedor.id);
       loadData();
     } catch (err) {
-      alert(err.message || 'Erro ao remover revendedor');
+      toast.error(err.message || 'Erro ao remover revendedor.');
     }
   };
 
@@ -2900,7 +3778,7 @@ const AdminPage = () => {
       if (texto.length > 0) {
         const parsed = Number(texto.replace(',', '.'));
         if (!Number.isFinite(parsed) || parsed <= 0) {
-          alert('Valor invalido.');
+          toast.warning('Valor inválido.');
           return;
         }
         valor = parsed;
@@ -2913,7 +3791,7 @@ const AdminPage = () => {
       await baixarTaxasRevendedor(revendedor.id, valor);
       loadData();
     } catch (err) {
-      alert(err.message || 'Erro ao baixar taxas');
+      toast.error(err.message || 'Erro ao baixar taxas.');
     }
   };
 
@@ -2923,14 +3801,14 @@ const AdminPage = () => {
     if (entrada === null) return;
     const dias = Number(entrada);
     if (!Number.isFinite(dias) || dias <= 0) {
-      alert('Dias invalidos.');
+      toast.warning('Dias inválidos.');
       return;
     }
     try {
       await ativarPremiumRevendedor(revendedor.id, Math.round(dias));
       loadData();
     } catch (err) {
-      alert(err.message || 'Erro ao ativar premium');
+      toast.error(err.message || 'Erro ao ativar premium.');
     }
   };
 
@@ -2941,7 +3819,7 @@ const AdminPage = () => {
       await desativarPremiumRevendedor(revendedor.id);
       loadData();
     } catch (err) {
-      alert(err.message || 'Erro ao desativar premium');
+      toast.error(err.message || 'Erro ao desativar premium.');
     }
   };
 
@@ -2949,12 +3827,12 @@ const AdminPage = () => {
     try {
       const [stats, data] = await Promise.all([
         fetchModeracaoStats(),
-        fetchModeracaoAlertas(alertFilters)
+        fetchModeracaoAlertas(alertFiltersRef.current)
       ]);
       setAlertStats(stats);
       setAlertas(data || []);
     } catch (err) {
-      alert(err.message || 'Erro ao carregar alertas');
+      toast.error(err.message || 'Erro ao carregar alertas.');
     }
   };
 
@@ -2963,7 +3841,7 @@ const AdminPage = () => {
       await atualizarModeracaoStatus(alerta.id, status);
       await loadAlertas();
     } catch (err) {
-      alert(err.message || 'Erro ao atualizar alerta');
+      toast.error(err.message || 'Erro ao atualizar alerta.');
     }
   };
 
@@ -2974,18 +3852,18 @@ const AdminPage = () => {
       await removerMensagemModeracao(alerta.mensagemId);
       await handleAlertStatus(alerta, 'RESOLVIDO');
     } catch (err) {
-      alert(err.message || 'Erro ao remover mensagem');
+      toast.error(err.message || 'Erro ao remover mensagem.');
     }
   };
 
   const handleRemoveImagemDenunciada = async (alerta) => {
     if (!alerta.pecaId || !alerta.imagemUrl) return;
-    if (!window.confirm('Remover a imagem denunciada da peca?')) return;
+    if (!window.confirm('Remover a imagem denunciada da peça?')) return;
     try {
       await removePecaImagem(alerta.pecaId, alerta.imagemUrl);
       await handleAlertStatus(alerta, 'RESOLVIDO');
     } catch (err) {
-      alert(err.message || 'Erro ao remover imagem');
+      toast.error(err.message || 'Erro ao remover imagem.');
     }
   };
 
@@ -2996,7 +3874,7 @@ const AdminPage = () => {
       await handleAlertStatus(alerta, 'RESOLVIDO');
       await loadData();
     } catch (err) {
-      alert(err.message || 'Erro ao suspender usuario');
+      toast.error(err.message || 'Erro ao suspender usuário.');
     }
   };
 

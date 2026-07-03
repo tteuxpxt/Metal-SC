@@ -269,6 +269,12 @@ export const fetchNegociacao = (conversaId, visualizadorId) => {
   return request(`/negociacoes/${conversaId}${query}`);
 };
 
+export const fetchNotificacoesContagem = (usuarioId) =>
+  request(`/negociacoes/notificacoes/${usuarioId}/contagem`);
+
+export const fetchNotificacoes = (usuarioId) =>
+  request(`/negociacoes/notificacoes/${usuarioId}`);
+
 export const enviarMensagemNegociacao = (conversaId, payload) =>
   request(`/negociacoes/${conversaId}/mensagens`, {
     method: 'POST',
