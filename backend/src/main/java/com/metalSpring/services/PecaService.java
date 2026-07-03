@@ -1,0 +1,334 @@
+package com.metalSpring.services;
+
+import com.metalSpring.model.entity.AlertaModeracao;
+import com.metalSpring.model.entity.Peca;
+import com.metalSpring.model.entity.Revendedor;
+import com.metalSpring.model.entity.Usuario;
+import com.metalSpring.model.enums.NivelRiscoModeracao;
+import com.metalSpring.repository.AlertaModeracaoRepository;
+import com.metalSpring.repository.ItemPedidoRepository;
+import com.metalSpring.repository.PecaRepository;
+import com.metalSpring.repository.RevendedorRepository;
+import com.metalSpring.repository.UsuarioRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Optional;
+
+@Service
+public class PecaService {
+
+    @Autowired
+    private PecaRepository pecaRepository;
+
+    @Autowired
+    private RevendedorRepository revendedorRepository;
+
+    @Autowired
+    private ItemPedidoRepository itemPedidoRepository;
+
+    @Autowired
+    private UsuarioRepository usuarioRepository;
+
+    @Autowired
+    private AlertaModeracaoRepository alertaModeracaoRepository;
+
+    @Value("${app.taxa.limite:0}")
+    private double limiteTaxaEmAberto;
+
+    private void desativarPremiumExpirado() {
+        List<Revendedor> expirados =
+                revendedorRepository.findByPremiumAtivoTrueAndPremiumAteBefore(LocalDateTime.now());
+        if (!expirados.isEmpty()) {
+            for (Revendedor revendedor : expirados) {
+                revendedor.setPremiumAtivo(false);
+                revendedor.setPremiumAte(null);
+            }
+            revendedorRepository.saveAll(expirados);
+        }
+    }
+
+    
+
+    private List<Peca> filtrarAtivas(List<Peca> pecas) {
+        return pecas.stream()
+                .filter(Peca::isDisponivel)
+                .toList();
+    }
+
+    public List<Peca> listarTodas() {
+        desativarPremiumExpirado();
+        return filtrarAtivas(pecaRepository.findAllOrderByPremium());
+    }
+
+    public Optional<Peca> buscarPorId(String id) {
+        return pecaRepository.findById(id)
+                .filter(Peca::isDisponivel);
+    }
+
+    public List<Peca> buscarPorNome(String nome) {
+        return filtrarAtivas(pecaRepository.findByNomeContainingIgnoreCase(nome));
+    }
+
+    public List<Peca> buscarPorMarca(String marca) {
+        return filtrarAtivas(pecaRepository.findByMarcaIgnoreCase(marca));
+    }
+
+    public List<Peca> buscarPorCategoria(String categoria) {
+        return filtrarAtivas(pecaRepository.findByCategoriaIgnoreCase(categoria));
+    }
+
+    public List<Peca> buscarPorCidade(String cidade) {
+        return filtrarAtivas(pecaRepository.findByEnderecoCidadeIgnoreCase(cidade));
+    }
+
+    public List<Peca> buscarPorEstadoEndereco(String estado) {
+        return filtrarAtivas(pecaRepository.findByEnderecoEstadoIgnoreCase(estado));
+    }
+
+    public List<Peca> buscarPorCidadeEEstado(String cidade, String estado) {
+        return filtrarAtivas(
+                pecaRepository.findByEnderecoCidadeIgnoreCaseAndEnderecoEstadoIgnoreCase(cidade, estado)
+        );
+    }
+
+    public List<Peca> buscarPorRevendedor(String revendedorId) {
+        return filtrarAtivas(pecaRepository.findByVendedorId(revendedorId));
+    }
+
+    public List<Peca> buscarDisponiveis() {
+        return filtrarAtivas(pecaRepository.findByEstoqueGreaterThan(0));
+    }
+
+    public List<Peca> listarDisponiveis() {
+        return buscarDisponiveis();
+    }
+
+    public boolean estaDisponivel(String id) {
+        Optional<Peca> peca = pecaRepository.findById(id);
+        return peca.isPresent() && peca.get().estaDisponivel();
+    }
+
+    
+
+    @Transactional
+    public Peca salvar(Peca peca) {
+        return pecaRepository.save(peca);
+    }
+
+    
+    @Transactional
+    public Peca criar(Peca peca, String revendedorId) {
+        System.out.println("🔍 [PecaService] Buscando revendedor com ID: " + revendedorId);
+
+        
+        Optional<Revendedor> revendedorOpt = revendedorRepository.findById(revendedorId);
+
+        if (revendedorOpt.isEmpty()) {
+            System.err.println("❌ [PecaService] Revendedor não encontrado: " + revendedorId);
+            throw new RuntimeException("Revendedor não encontrado com ID: " + revendedorId);
+        }
+
+        Revendedor revendedor = revendedorOpt.get();
+
+        if (revendedor.getSaldoTaxas() != null && revendedor.getSaldoTaxas() > limiteTaxaEmAberto) {
+            throw new RuntimeException("Revendedor com taxas em aberto. Regularize para anunciar.");
+        }
+        System.out.println("✅ [PecaService] Revendedor encontrado: " + revendedor.getNome());
+
+        
+        peca.setVendedor(revendedor);
+
+        
+        System.out.println("💾 [PecaService] Salvando peça: " + peca.getNome());
+        Peca pecaSalva = pecaRepository.save(peca);
+        System.out.println("✅ [PecaService] Peça salva com ID: " + pecaSalva.getId());
+
+        
+        revendedor.adicionarPeca(pecaSalva);
+        revendedorRepository.save(revendedor);
+        System.out.println("✅ [PecaService] Peça associada ao revendedor");
+
+        return pecaSalva;
+    }
+
+    @Transactional
+    public Peca atualizar(String id, Peca pecaAtualizada) {
+        System.out.println("🔄 [PecaService] Atualizando peça com ID: " + id);
+
+        Optional<Peca> pecaExistente = pecaRepository.findById(id);
+
+        if (pecaExistente.isEmpty()) {
+            System.err.println("❌ [PecaService] Peça não encontrada: " + id);
+            throw new RuntimeException("Peça não encontrada com ID: " + id);
+        }
+
+        Peca peca = pecaExistente.get();
+
+        
+        if (pecaAtualizada.getNome() != null) {
+            peca.setNome(pecaAtualizada.getNome());
+        }
+        if (pecaAtualizada.getDescricao() != null) {
+            peca.setDescricao(pecaAtualizada.getDescricao());
+        }
+        if (pecaAtualizada.getCategoria() != null) {
+            peca.setCategoria(pecaAtualizada.getCategoria());
+        }
+        if (pecaAtualizada.getPreco() != null) {
+            peca.setPreco(pecaAtualizada.getPreco());
+        }
+        if (pecaAtualizada.getEstado() != null) {
+            peca.setEstado(pecaAtualizada.getEstado());
+        }
+        if (pecaAtualizada.getAno() != null) {
+            peca.setAno(pecaAtualizada.getAno());
+        }
+        if (pecaAtualizada.getMarca() != null) {
+            peca.setMarca(pecaAtualizada.getMarca());
+        }
+        if (pecaAtualizada.getModeloVeiculo() != null) {
+            peca.setModeloVeiculo(pecaAtualizada.getModeloVeiculo());
+        }
+        if (pecaAtualizada.getEndereco() != null) {
+            if (peca.getEndereco() == null) {
+                peca.setEndereco(pecaAtualizada.getEndereco());
+            } else {
+                peca.getEndereco().atualizar(pecaAtualizada.getEndereco());
+            }
+        }
+        if (pecaAtualizada.getEstoque() != null) {
+            peca.setEstoque(pecaAtualizada.getEstoque());
+        }
+
+        Peca pecaSalva = pecaRepository.save(peca);
+        System.out.println("✅ [PecaService] Peça atualizada com sucesso");
+
+        return pecaSalva;
+    }
+
+    @Transactional
+    public void alterarEstoque(String id, int quantidade) {
+        System.out.println("📦 [PecaService] Alterando estoque da peça: " + id);
+
+        Optional<Peca> pecaOpt = pecaRepository.findById(id);
+
+        if (pecaOpt.isEmpty()) {
+            System.err.println("❌ [PecaService] Peça não encontrada: " + id);
+            throw new RuntimeException("Peça não encontrada com ID: " + id);
+        }
+
+        Peca peca = pecaOpt.get();
+        peca.alterarEstoque(quantidade);
+        pecaRepository.save(peca);
+
+        System.out.println("✅ [PecaService] Estoque atualizado: " + peca.getEstoque());
+    }
+
+    @Transactional
+    public void adicionarImagem(String id, String urlImagem) {
+        System.out.println("🖼️ [PecaService] Adicionando imagem à peça: " + id);
+
+        Optional<Peca> pecaOpt = pecaRepository.findById(id);
+
+        if (pecaOpt.isEmpty()) {
+            System.err.println("❌ [PecaService] Peça não encontrada: " + id);
+            throw new RuntimeException("Peça não encontrada com ID: " + id);
+        }
+
+        Peca peca = pecaOpt.get();
+        peca.adicionarImagem(urlImagem);
+        pecaRepository.save(peca);
+
+        System.out.println("✅ [PecaService] Imagem adicionada com sucesso");
+    }
+
+    @Transactional
+    public void removerImagem(String id, String urlImagem) {
+        System.out.println("🗑️ [PecaService] Removendo imagem da peça: " + id);
+
+        Optional<Peca> pecaOpt = pecaRepository.findById(id);
+
+        if (pecaOpt.isEmpty()) {
+            System.err.println("❌ [PecaService] Peça não encontrada: " + id);
+            throw new RuntimeException("Peça não encontrada com ID: " + id);
+        }
+
+        Peca peca = pecaOpt.get();
+        peca.removerImagem(urlImagem);
+        pecaRepository.save(peca);
+
+        System.out.println("✅ [PecaService] Imagem removida com sucesso");
+    }
+
+    @Transactional
+    public void denunciarImagem(String pecaId, String imagemUrl, String usuarioId, String motivo) {
+        if (imagemUrl == null || imagemUrl.isBlank()) {
+            throw new RuntimeException("Imagem obrigatoria para denuncia");
+        }
+        if (usuarioId == null || usuarioId.isBlank()) {
+            throw new RuntimeException("Usuario obrigatorio para denuncia");
+        }
+
+        Peca peca = pecaRepository.findById(pecaId)
+                .orElseThrow(() -> new RuntimeException("Peca nao encontrada com ID: " + pecaId));
+        if (peca.getImagens() == null || !peca.getImagens().contains(imagemUrl)) {
+            throw new RuntimeException("Imagem nao encontrada nesta peca");
+        }
+
+        Usuario denunciante = usuarioRepository.findById(usuarioId)
+                .orElseThrow(() -> new RuntimeException("Usuario denunciante nao encontrado"));
+        Revendedor responsavel = peca.getVendedor();
+        if (responsavel == null) {
+            throw new RuntimeException("Revendedor responsavel nao encontrado");
+        }
+
+        String motivoNormalizado = motivo == null || motivo.isBlank()
+                ? "Imagem denunciada pelo usuario"
+                : motivo.trim();
+
+        AlertaModeracao alerta = new AlertaModeracao();
+        alerta.setPeca(peca);
+        alerta.setPecaNome(peca.getNome());
+        alerta.setImagemUrl(imagemUrl);
+        alerta.setUsuario(responsavel);
+        alerta.setUsuarioNome(responsavel.getNome());
+        alerta.setUsuarioTipo(responsavel.getTipo());
+        alerta.setMensagemEnviada("Denuncia de imagem feita por " + denunciante.getNome() + ": " + motivoNormalizado);
+        alerta.setPalavraDetectada("denuncia manual");
+        alerta.setTipoInfracao("imagem denunciada");
+        alerta.setNivelRisco(NivelRiscoModeracao.MEDIO);
+        alertaModeracaoRepository.save(alerta);
+    }
+
+    @Transactional
+    public void deletar(String id) {
+        System.out.println("🗑️ [PecaService] Deletando peça: " + id);
+
+        if (!pecaRepository.existsById(id)) {
+            System.err.println("❌ [PecaService] Peça não encontrada: " + id);
+            throw new RuntimeException("Peça não encontrada com ID: " + id);
+        }
+
+        Peca peca = pecaRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Peca nao encontrada com ID: " + id));
+
+        if (itemPedidoRepository.existsByPecaId(id)) {
+            peca.setDisponivel(false);
+            peca.setEstoque(0);
+            pecaRepository.save(peca);
+            System.out.println("[PecaService] Peca desativada (possui pedidos)");
+            return;
+        }
+
+        pecaRepository.deleteById(id);
+        System.out.println("✅ [PecaService] Peça deletada com sucesso");
+    }
+}
+
+
+
