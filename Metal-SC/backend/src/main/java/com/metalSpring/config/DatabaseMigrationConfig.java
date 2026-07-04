@@ -26,9 +26,34 @@ public class DatabaseMigrationConfig {
         executar("ALTER TABLE alertas_moderacao ADD COLUMN imagem_url VARCHAR(1000) NULL");
     }
 
-    private void executar(String sql) {
+    @PostConstruct
+    public void ajustarCategoriasDePecas() {
+        // Migra as categorias antigas (em maiusculo/sem acento) para o novo
+        // formato exibido na interface. Compara ignorando espacos e
+        // maiusculas/minusculas para pegar variacoes que possam ter sido
+        // gravadas manualmente.
+        atualizarCategoria("MOTOR", "Motor");
+        atualizarCategoria("SUSPENSAO", "Suspensão");
+        atualizarCategoria("FREIOS", "Freios");
+        atualizarCategoria("ELETRICA", "Elétrica");
+        atualizarCategoria("CARROCERIA", "Carroceria e Lataria");
+        atualizarCategoria("TRANSMISSAO", "Câmbio e Transmissão");
+    }
+
+    private void atualizarCategoria(String valorAntigo, String valorNovo) {
+        executar(
+            "UPDATE pecas SET categoria = ? WHERE UPPER(TRIM(categoria)) = ? AND categoria <> ?",
+            valorNovo, valorAntigo.toUpperCase(), valorNovo
+        );
+    }
+
+    private void executar(String sql, Object... args) {
         try {
-            jdbcTemplate.execute(sql);
+            if (args.length == 0) {
+                jdbcTemplate.execute(sql);
+            } else {
+                jdbcTemplate.update(sql, args);
+            }
         } catch (RuntimeException ignored) {
         }
     }

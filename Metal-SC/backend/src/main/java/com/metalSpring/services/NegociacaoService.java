@@ -3,6 +3,7 @@ package com.metalSpring.services;
 import com.metalSpring.model.dto.AlertaModeracaoDTO;
 import com.metalSpring.model.dto.NegociacaoConversaDTO;
 import com.metalSpring.model.dto.NegociacaoMensagemDTO;
+import com.metalSpring.model.dto.NotificacaoDTO;
 import com.metalSpring.model.entity.AlertaModeracao;
 import com.metalSpring.model.entity.Cliente;
 import com.metalSpring.model.entity.ConversaNegociacao;
@@ -28,12 +29,14 @@ import java.text.Normalizer;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -358,6 +361,51 @@ public class NegociacaoService {
         List<MensagemNegociacao> mensagens = mensagemRepository.findByConversaIdAndDestinatarioIdAndLidaFalse(conversaId, usuarioId);
         mensagens.forEach(mensagem -> mensagem.setLida(true));
         mensagemRepository.saveAll(mensagens);
+    }
+
+    public long contarNotificacoes(String usuarioId) {
+        return mensagemRepository.countByDestinatarioIdAndLidaFalseAndRemovidaFalse(usuarioId);
+    }
+
+    public List<NotificacaoDTO> listarNotificacoes(String usuarioId) {
+        List<MensagemNegociacao> naoLidas =
+                mensagemRepository.findByDestinatarioIdAndLidaFalseAndRemovidaFalseOrderByDataEnvioDesc(usuarioId);
+
+        Map<String, List<MensagemNegociacao>> porConversa = naoLidas.stream()
+                .collect(Collectors.groupingBy(
+                        mensagem -> mensagem.getConversa().getId(),
+                        LinkedHashMap::new,
+                        Collectors.toList()
+                ));
+
+        List<NotificacaoDTO> notificacoes = new ArrayList<>();
+        for (Map.Entry<String, List<MensagemNegociacao>> entry : porConversa.entrySet()) {
+            List<MensagemNegociacao> mensagensDaConversa = entry.getValue();
+            MensagemNegociacao maisRecente = mensagensDaConversa.get(0);
+
+            NotificacaoDTO dto = new NotificacaoDTO();
+            dto.setConversaId(entry.getKey());
+            dto.setMensagemId(maisRecente.getId());
+            dto.setPecaNome(
+                    maisRecente.getConversa().getPeca() != null
+                            ? maisRecente.getConversa().getPeca().getNome()
+                            : null
+            );
+            dto.setRemetenteNome(
+                    maisRecente.getRemetente() != null ? maisRecente.getRemetente().getNome() : null
+            );
+            dto.setTrechoMensagem(truncarTrecho(maisRecente.getConteudo()));
+            dto.setDataEnvio(maisRecente.getDataEnvio());
+            dto.setNaoLidas(mensagensDaConversa.size());
+            notificacoes.add(dto);
+        }
+        return notificacoes;
+    }
+
+    private String truncarTrecho(String conteudo) {
+        if (conteudo == null) return "";
+        String trimmed = conteudo.trim();
+        return trimmed.length() > 80 ? trimmed.substring(0, 80).trim() + "..." : trimmed;
     }
 
     public List<AlertaModeracaoDTO> listarAlertas(String usuarioId, String data, String tipo, AlertaModeracaoStatus status) {

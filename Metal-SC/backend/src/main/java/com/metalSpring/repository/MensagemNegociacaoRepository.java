@@ -10,4 +10,6 @@ public interface MensagemNegociacaoRepository extends JpaRepository<MensagemNego
     List<MensagemNegociacao> findByConversaIdOrderByDataEnvioAsc(String conversaId);
     long countByConversaIdAndDestinatarioIdAndLidaFalseAndRemovidaFalse(String conversaId, String destinatarioId);
     List<MensagemNegociacao> findByConversaIdAndDestinatarioIdAndLidaFalse(String conversaId, String destinatarioId);
+    long countByDestinatarioIdAndLidaFalseAndRemovidaFalse(String destinatarioId);
+    List<MensagemNegociacao> findByDestinatarioIdAndLidaFalseAndRemovidaFalseOrderByDataEnvioDesc(String destinatarioId);
 }

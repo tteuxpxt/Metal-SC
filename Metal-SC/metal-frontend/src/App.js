@@ -3,6 +3,8 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import {
   Bell,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   Clock3,
   Edit2,
   Filter,
@@ -220,6 +222,7 @@ const AppProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [authToken, setAuthToken] = useState(null);
   const [cart, setCart] = useState([]);
+  const [hydrated, setHydrated] = useState(false);
   const [currentPage, setCurrentPage] = useState('home');
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [selectedProfile, setSelectedProfile] = useState(null);
@@ -230,42 +233,62 @@ const AppProvider = ({ children }) => {
     const savedUser = localStorage.getItem('metal_user');
     const savedCart = localStorage.getItem('metal_cart');
     const savedAuth = localStorage.getItem('metal_auth');
-    if (savedUser) setUser(JSON.parse(savedUser));
-    if (savedCart) {
-      const parsed = JSON.parse(savedCart);
-      const normalized = Array.isArray(parsed)
-        ? parsed.map((item) => {
-            const maxEstoque = toNumberOrNull(item?.estoque);
-            if (maxEstoque !== null && item.quantidade > maxEstoque) {
-              return { ...item, quantidade: maxEstoque };
-            }
-            return item;
-          })
-        : [];
-      setCart(normalized);
+
+    if (savedUser) {
+      try {
+        setUser(JSON.parse(savedUser));
+      } catch (err) {
+        console.error('Sessão salva inválida, removendo:', err);
+        localStorage.removeItem('metal_user');
+      }
     }
+
+    if (savedCart) {
+      try {
+        const parsed = JSON.parse(savedCart);
+        const normalized = Array.isArray(parsed)
+          ? parsed.map((item) => {
+              const maxEstoque = toNumberOrNull(item?.estoque);
+              if (maxEstoque !== null && item.quantidade > maxEstoque) {
+                return { ...item, quantidade: maxEstoque };
+              }
+              return item;
+            })
+          : [];
+        setCart(normalized);
+      } catch (err) {
+        console.error('Carrinho salvo inválido, removendo:', err);
+        localStorage.removeItem('metal_cart');
+      }
+    }
+
     if (savedAuth) setAuthToken(savedAuth);
+
+    setHydrated(true);
   }, []);
 
   useEffect(() => {
+    if (!hydrated) return;
     if (user) {
       localStorage.setItem('metal_user', JSON.stringify(user));
     } else {
       localStorage.removeItem('metal_user');
     }
-  }, [user]);
+  }, [user, hydrated]);
 
   useEffect(() => {
+    if (!hydrated) return;
     if (authToken) {
       localStorage.setItem('metal_auth', authToken);
     } else {
       localStorage.removeItem('metal_auth');
     }
-  }, [authToken]);
+  }, [authToken, hydrated]);
 
   useEffect(() => {
+    if (!hydrated) return;
     localStorage.setItem('metal_cart', JSON.stringify(cart));
-  }, [cart]);
+  }, [cart, hydrated]);
 
   useEffect(() => {
     const handleUnauthorized = () => {
@@ -433,7 +456,7 @@ const App = () => (
 );
 
 const Header = () => {
-  const { user, cart, setCurrentPage, mobileMenuOpen, setMobileMenuOpen, openNegotiation } = useApp();
+  const { user, authToken, cart, setCurrentPage, mobileMenuOpen, setMobileMenuOpen, openNegotiation } = useApp();
   const [notificationCount, setNotificationCount] = useState(0);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
@@ -442,17 +465,17 @@ const Header = () => {
   const notificationBadge = notificationCount > 9 ? '9+' : notificationCount;
 
   const loadNotificationCount = useCallback(async () => {
-    if (!user?.id) return;
+    if (!user?.id || !authToken) return;
     try {
       const data = await fetchNotificacoesContagem(user.id);
       setNotificationCount(Number(data?.total ?? data ?? 0));
     } catch (err) {
       console.error(err);
     }
-  }, [user?.id]);
+  }, [user?.id, authToken]);
 
   const loadNotifications = async () => {
-    if (!user?.id) return;
+    if (!user?.id || !authToken) return;
     setNotificationsLoading(true);
     try {
       const data = await fetchNotificacoes(user.id);
@@ -466,7 +489,7 @@ const Header = () => {
   };
 
   useEffect(() => {
-    if (!user?.id) {
+    if (!user?.id || !authToken) {
       setNotificationCount(0);
       setNotifications([]);
       setNotificationsOpen(false);
@@ -476,7 +499,7 @@ const Header = () => {
     loadNotificationCount();
     const timer = setInterval(loadNotificationCount, 45000);
     return () => clearInterval(timer);
-  }, [user?.id, loadNotificationCount]);
+  }, [user?.id, authToken, loadNotificationCount]);
 
   const handleUserClick = () => {
     if (user?.tipo === 'ADMINISTRADOR') {
@@ -675,6 +698,13 @@ const Header = () => {
 const HomePage = () => {
   const { setCurrentPage, openProduct, addToCart, user } = useApp();
   const [featuredProducts, setFeaturedProducts] = useState([]);
+  const featuredTrackRef = useRef(null);
+  const scrollFeatured = (direction) => {
+    const track = featuredTrackRef.current;
+    if (!track) return;
+    const amount = track.clientWidth * 0.8;
+    track.scrollBy({ left: direction === 'left' ? -amount : amount, behavior: 'smooth' });
+  };
   const heroStats = [
     { label: 'Anúncios ativos', value: '10k+' },
     { label: 'Revendedores SC', value: '480+' },
@@ -769,7 +799,7 @@ const HomePage = () => {
 
   useEffect(() => {
     fetchPecas()
-      .then((data) => setFeaturedProducts(data.slice(0, 6)))
+      .then((data) => setFeaturedProducts(data.slice(0, 9)))
       .catch((err) => console.error(err));
   }, []);
 
@@ -826,6 +856,43 @@ const HomePage = () => {
                 <span>Freios</span>
               </div>
             </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="highlight">
+        <div className="container">
+          <div className="section-title">
+            <h2>Destaques da semana</h2>
+            <p>Selecionamos as peças mais procuradas.</p>
+          </div>
+          <div className="featured-carousel">
+            <button
+              type="button"
+              className="carousel-nav-btn"
+              onClick={() => scrollFeatured('left')}
+              aria-label="Ver destaques anteriores"
+            >
+              <ChevronLeft size={18} />
+            </button>
+            <div className="featured-carousel-track" ref={featuredTrackRef}>
+              {featuredProducts.map((product) => (
+                <ProductCard
+                  key={product.id}
+                  product={product}
+                  onView={openProduct}
+                  onAdd={addToCart}
+                />
+              ))}
+            </div>
+            <button
+              type="button"
+              className="carousel-nav-btn"
+              onClick={() => scrollFeatured('right')}
+              aria-label="Ver próximos destaques"
+            >
+              <ChevronRight size={18} />
+            </button>
           </div>
         </div>
       </section>
@@ -925,25 +992,6 @@ const HomePage = () => {
         </div>
       </section>
 
-      <section className="highlight">
-        <div className="container">
-          <div className="section-title">
-            <h2>Destaques da semana</h2>
-            <p>Selecionamos as peças mais procuradas.</p>
-          </div>
-          <div className="product-grid">
-            {featuredProducts.map((product) => (
-              <ProductCard
-                key={product.id}
-                product={product}
-                onView={openProduct}
-                onAdd={addToCart}
-              />
-            ))}
-          </div>
-        </div>
-      </section>
-
       <section className="testimonials-section">
         <div className="container">
           <div className="section-title">
@@ -994,8 +1042,31 @@ const ProductsPage = () => {
   const [loading, setLoading] = useState(true);
   const [showFilters, setShowFilters] = useState(false);
 
-  const categories = ['MOTOR', 'SUSPENSAO', 'FREIOS', 'ELETRICA', 'CARROCERIA', 'TRANSMISSAO'];
+  const categories = [
+    'Motor',
+    'Suspensão',
+    'Freios',
+    'Elétrica',
+    'Câmbio e Transmissão',
+    'Arrefecimento',
+    'Escapamento',
+    'Rodas e Pneus',
+    'Ar Condicionado',
+    'Iluminação',
+    'Interior e Acabamento',
+    'Vidros e Retrovisores',
+    'Direção',
+    'Combustível e Injeção',
+    'Carroceria e Lataria',
+    'Acessórios'
+  ];
   const states = ['NOVO', 'USADO', 'RECONDICIONADO', 'DEFEITUOSO'];
+  const estadoLabels = {
+    NOVO: 'Novo',
+    USADO: 'Usado',
+    RECONDICIONADO: 'Recondicionado',
+    DEFEITUOSO: 'Defeituoso'
+  };
 
   useEffect(() => {
     setLoading(true);
@@ -1080,7 +1151,7 @@ const ProductsPage = () => {
           <select value={selectedState} onChange={(e) => setSelectedState(e.target.value)}>
             <option value="">Todos</option>
             {states.map((state) => (
-              <option key={state} value={state}>{state}</option>
+              <option key={state} value={state}>{estadoLabels[state] || state}</option>
             ))}
           </select>
         </div>
@@ -2576,6 +2647,7 @@ const PecaForm = ({
   setFormData,
   categories,
   states,
+  estadoLabels,
   imageFiles,
   existingImages,
   onEnderecoChange,
@@ -2698,7 +2770,7 @@ const PecaForm = ({
               onChange={(e) => setFormData({ ...formData, estado: e.target.value })}
             >
               {states.map((state) => (
-                <option key={state} value={state}>{state}</option>
+                <option key={state} value={state}>{estadoLabels?.[state] || state}</option>
               ))}
             </select>
           </div>
@@ -3391,8 +3463,31 @@ const RevendedorDashboard = () => {
   const [imageFiles, setImageFiles] = useState([]);
   const [existingImages, setExistingImages] = useState([]);
 
-  const categories = ['MOTOR', 'SUSPENSAO', 'FREIOS', 'ELETRICA', 'CARROCERIA', 'TRANSMISSAO'];
+  const categories = [
+    'Motor',
+    'Suspensão',
+    'Freios',
+    'Elétrica',
+    'Câmbio e Transmissão',
+    'Arrefecimento',
+    'Escapamento',
+    'Rodas e Pneus',
+    'Ar Condicionado',
+    'Iluminação',
+    'Interior e Acabamento',
+    'Vidros e Retrovisores',
+    'Direção',
+    'Combustível e Injeção',
+    'Carroceria e Lataria',
+    'Acessórios'
+  ];
   const states = ['NOVO', 'USADO', 'RECONDICIONADO', 'DEFEITUOSO'];
+  const estadoLabels = {
+    NOVO: 'Novo',
+    USADO: 'Usado',
+    RECONDICIONADO: 'Recondicionado',
+    DEFEITUOSO: 'Defeituoso'
+  };
 
   const loadPecas = useCallback(() => {
     if (user?.id) {
@@ -3778,6 +3873,7 @@ const RevendedorDashboard = () => {
         setFormData={setFormData}
         categories={categories}
         states={states}
+        estadoLabels={estadoLabels}
         imageFiles={imageFiles}
         existingImages={existingImages}
         onEnderecoChange={handleEnderecoChange}

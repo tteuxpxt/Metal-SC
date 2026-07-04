@@ -1,5 +1,6 @@
 package com.metalSpring.model.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 import java.util.Objects;
@@ -12,16 +13,22 @@ public class Avaliacao {
     @GeneratedValue(strategy = GenerationType.UUID)
     private String id;
 
+    // @JsonIgnore evita loop infinito na serialização:
+    // Peca -> avaliacoes -> Avaliacao -> peca -> Peca -> avaliacoes -> ...
+    // (o mesmo aconteceria via vendedor.avaliacoes e cliente.avaliacoes)
     @ManyToOne
     @JoinColumn(name = "cliente_id", nullable = false)
+    @JsonIgnore
     private Usuario cliente;
 
     @ManyToOne
     @JoinColumn(name = "vendedor_id", nullable = false)
+    @JsonIgnore
     private Revendedor vendedor;
 
     @ManyToOne
     @JoinColumn(name = "peca_id")
+    @JsonIgnore
     private Peca peca;
 
     @Column(nullable = false)

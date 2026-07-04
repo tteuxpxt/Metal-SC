@@ -3,6 +3,7 @@ package com.metalSpring.controller;
 import com.metalSpring.model.dto.NegociacaoConversaDTO;
 import com.metalSpring.model.dto.NegociacaoCriarDTO;
 import com.metalSpring.model.dto.NegociacaoEnviarMensagemDTO;
+import com.metalSpring.model.dto.NotificacaoDTO;
 import com.metalSpring.model.enums.NegociacaoStatus;
 import com.metalSpring.model.enums.TipoMensagemNegociacao;
 import com.metalSpring.services.NegociacaoService;
@@ -39,6 +40,16 @@ public class NegociacaoController {
         } catch (RuntimeException e) {
             return ResponseEntity.notFound().build();
         }
+    }
+
+    @GetMapping("/notificacoes/{usuarioId}")
+    public ResponseEntity<List<NotificacaoDTO>> listarNotificacoes(@PathVariable String usuarioId) {
+        return ResponseEntity.ok(negociacaoService.listarNotificacoes(usuarioId));
+    }
+
+    @GetMapping("/notificacoes/{usuarioId}/contagem")
+    public ResponseEntity<Map<String, Long>> contarNotificacoes(@PathVariable String usuarioId) {
+        return ResponseEntity.ok(Map.of("total", negociacaoService.contarNotificacoes(usuarioId)));
     }
 
     @GetMapping("/cliente/{clienteId}")
