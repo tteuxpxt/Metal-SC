@@ -62,6 +62,8 @@ public class PedidoController {
         dto.setEnderecoEntrega(toEnderecoDTO(pedido.getEnderecoEntrega()));
         if (pedido.getConversaNegociacao() != null) {
             dto.setConversaId(pedido.getConversaNegociacao().getId());
+            dto.setChatOcultoParaCliente(Boolean.TRUE.equals(pedido.getConversaNegociacao().getOcultaParaCliente()));
+            dto.setChatOcultoParaRevendedor(Boolean.TRUE.equals(pedido.getConversaNegociacao().getOcultaParaRevendedor()));
         }
 
         Usuario cliente = pedido.getCliente();

@@ -22,6 +22,7 @@ public class AlertaModeracaoDTO {
     private NivelRiscoModeracao nivelRisco;
     private AlertaModeracaoStatus status;
     private long contadorInfracoesUsuario;
+    private boolean denunciaManual;
 
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }
@@ -55,4 +56,6 @@ public class AlertaModeracaoDTO {
     public void setStatus(AlertaModeracaoStatus status) { this.status = status; }
     public long getContadorInfracoesUsuario() { return contadorInfracoesUsuario; }
     public void setContadorInfracoesUsuario(long contadorInfracoesUsuario) { this.contadorInfracoesUsuario = contadorInfracoesUsuario; }
+    public boolean isDenunciaManual() { return denunciaManual; }
+    public void setDenunciaManual(boolean denunciaManual) { this.denunciaManual = denunciaManual; }
 }

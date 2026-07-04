@@ -31,10 +31,16 @@ import {
   User,
   Eye,
   EyeOff,
-  X
+  X,
+  Send,
+  Check,
+  XCircle,
+  Tag,
+  CheckCheck
 } from 'lucide-react';
 import './App.css';
 import { ToastProvider, useToast } from './components/Toast';
+import { ConfirmProvider, useConfirm } from './components/ConfirmDialog';
 import metalScLogo from './assets/Metal-SC-removebg-preview.png'; 
 import {
   createPedido,
@@ -56,6 +62,7 @@ import {
   updatePerfil,
   uploadUsuarioFoto,
   confirmarPagamentoPedido,
+  cancelarPedido,
   informarPagamentoPedido,
   baixarTaxasRevendedor,
   ativarPremiumRevendedor,
@@ -71,6 +78,8 @@ import {
   recusarNegociacao,
   encerrarNegociacao,
   marcarNegociacaoLida,
+  excluirNegociacao,
+  denunciarNegociacao,
   fetchModeracaoAlertas,
   fetchModeracaoStats,
   atualizarModeracaoStatus,
@@ -149,6 +158,16 @@ const getStatusPillClass = (status) => {
   return 'neutral';
 };
 
+const MESSAGE_TYPE_META = {
+  PROPOSTA: { label: 'Proposta', className: 'tag-proposta' },
+  CONTRAPROPOSTA: { label: 'Contraproposta', className: 'tag-contraproposta' },
+  ACEITE: { label: 'Aceite', className: 'tag-aceite' },
+  RECUSA: { label: 'Recusa', className: 'tag-recusa' },
+  APROVACAO: { label: 'Aprovação', className: 'tag-aprovacao' }
+};
+
+const getMessageTypeMeta = (tipo) => MESSAGE_TYPE_META[tipo] || null;
+
 const getInitials = (name = '') => {
   const parts = String(name).trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return '?';
@@ -223,6 +242,8 @@ const AppProvider = ({ children }) => {
   const [authToken, setAuthToken] = useState(null);
   const [cart, setCart] = useState([]);
   const [hydrated, setHydrated] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCity, setSelectedCity] = useState('');
   const [currentPage, setCurrentPage] = useState('home');
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [selectedProfile, setSelectedProfile] = useState(null);
@@ -401,6 +422,10 @@ const AppProvider = ({ children }) => {
     cart,
     currentPage,
     setCurrentPage,
+    searchQuery,
+    setSearchQuery,
+    selectedCity,
+    setSelectedCity,
     selectedProduct,
     setSelectedProduct,
     selectedProfile,
@@ -449,14 +474,16 @@ const AppShell = () => {
 
 const App = () => (
   <ToastProvider>
-    <AppProvider>
-      <AppShell />
-    </AppProvider>
+    <ConfirmProvider>
+      <AppProvider>
+        <AppShell />
+      </AppProvider>
+    </ConfirmProvider>
   </ToastProvider>
 );
 
 const Header = () => {
-  const { user, authToken, cart, setCurrentPage, mobileMenuOpen, setMobileMenuOpen, openNegotiation } = useApp();
+  const { user, authToken, cart, setCurrentPage, mobileMenuOpen, setMobileMenuOpen, openNegotiation, searchQuery, setSearchQuery, selectedCity, setSelectedCity } = useApp();
   const [notificationCount, setNotificationCount] = useState(0);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
@@ -520,6 +547,15 @@ const Header = () => {
     setMobileMenuOpen(false);
     setNotificationsOpen(false);
   };
+  const handleHeaderSearchSubmit = (e) => {
+    e.preventDefault();
+    handleHeaderSearch();
+  };
+  const handleHeaderCityChange = (e) => {
+    const value = e.target.value;
+    setSelectedCity(value === 'Todas as cidades de SC' ? '' : value);
+    handleHeaderSearch();
+  };
   const handleNotificationToggle = () => {
     const nextOpen = !notificationsOpen;
     setNotificationsOpen(nextOpen);
@@ -563,18 +599,23 @@ const Header = () => {
             </button>
           </nav>
 
-          <div className="header-search" role="search">
+          <form className="header-search" role="search" onSubmit={handleHeaderSearchSubmit}>
             <div className="header-search-field">
               <Search size={17} />
               <input
                 type="text"
                 placeholder="Buscar peça, marca ou modelo"
-                onFocus={handleHeaderSearch}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
             <div className="header-city-field">
               <MapPin size={17} />
-              <select aria-label="Selecionar cidade em Santa Catarina" onChange={handleHeaderSearch}>
+              <select
+                aria-label="Selecionar cidade em Santa Catarina"
+                value={selectedCity || 'Todas as cidades de SC'}
+                onChange={handleHeaderCityChange}
+              >
                 <option>Todas as cidades de SC</option>
                 <option>Florianópolis</option>
                 <option>Joinville</option>
@@ -598,11 +639,11 @@ const Header = () => {
                 <option>Navegantes</option>
               </select>
             </div>
-            <button className="header-search-submit" onClick={handleHeaderSearch} aria-label="Buscar peças">
+            <button type="submit" className="header-search-submit" aria-label="Buscar peças">
               <Search size={16} />
               <span>Buscar</span>
             </button>
-          </div>
+          </form>
         </div>
 
         <div className="header-actions">
@@ -754,7 +795,7 @@ const HomePage = () => {
       icon: Package
     }
   ];
-  // Dados temporários até existir endpoint público de revendedores por cidade.
+
   const regionalDealers = [
     { cidade: 'Florianópolis', quantidade: 86 },
     { cidade: 'Joinville', quantidade: 74 },
@@ -1030,17 +1071,37 @@ const HomePage = () => {
 };
 
 const ProductsPage = () => {
-  const { openProduct, addToCart } = useApp();
+  const { openProduct, addToCart, searchQuery, setSearchQuery, selectedCity, setSelectedCity } = useApp();
   const [products, setProducts] = useState([]);
-  const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedState, setSelectedState] = useState('');
-  const [selectedCity, setSelectedCity] = useState('');
-  const [selectedUf, setSelectedUf] = useState('');
   const [minPrice, setMinPrice] = useState('');
   const [maxPrice, setMaxPrice] = useState('');
   const [loading, setLoading] = useState(true);
   const [showFilters, setShowFilters] = useState(false);
+
+  const scCities = [
+    'Florianópolis',
+    'Joinville',
+    'Blumenau',
+    'São José',
+    'Criciúma',
+    'Chapecó',
+    'Itajaí',
+    'Jaraguá do Sul',
+    'Palhoça',
+    'Lages',
+    'Balneário Camboriú',
+    'Brusque',
+    'Tubarão',
+    'São Bento do Sul',
+    'Caçador',
+    'Concórdia',
+    'Rio do Sul',
+    'Araranguá',
+    'Biguaçu',
+    'Navegantes'
+  ];
 
   const categories = [
     'Motor',
@@ -1093,8 +1154,8 @@ const ProductsPage = () => {
         !selectedCity ||
         product.endereco?.cidade?.toLowerCase().includes(selectedCity.toLowerCase());
       const matchesUf =
-        !selectedUf ||
-        product.endereco?.estado?.toLowerCase().includes(selectedUf.toLowerCase());
+        !product.endereco?.estado ||
+        product.endereco.estado.toLowerCase().includes('sc');
       const matchesMinPrice =
         !minPrice || Number(product.preco) >= Number(minPrice);
       const matchesMaxPrice =
@@ -1110,7 +1171,7 @@ const ProductsPage = () => {
         matchesMaxPrice
       );
     });
-  }, [products, searchQuery, selectedCategory, selectedState, selectedCity, selectedUf, minPrice, maxPrice]);
+  }, [products, searchQuery, selectedCategory, selectedState, selectedCity, minPrice, maxPrice]);
 
   return (
     <div className="products-page container">
@@ -1157,20 +1218,11 @@ const ProductsPage = () => {
         </div>
         <div className="filter-group">
           <label>Cidade</label>
-          <input
-            type="text"
-            value={selectedCity}
-            onChange={(e) => setSelectedCity(e.target.value)}
-            placeholder="Ex: Florianopolis"
-          />
-        </div>
-        <div className="filter-group">
-          <label>UF</label>
-          <select value={selectedUf} onChange={(e) => setSelectedUf(e.target.value)}>
-            <option value="">Todas</option>
-            <option value="SC">SC</option>
-            <option value="PR">PR</option>
-            <option value="RS">RS</option>
+          <select value={selectedCity} onChange={(e) => setSelectedCity(e.target.value)}>
+            <option value="">Todas as cidades de SC</option>
+            {scCities.map((city) => (
+              <option key={city} value={city}>{city}</option>
+            ))}
           </select>
         </div>
         <div className="filter-group">
@@ -2141,6 +2193,7 @@ const ProfileSettingsPanel = () => {
 
 const ProfilePage = () => {
   const { user, selectedProfile, setCurrentPage } = useApp();
+  const confirm = useConfirm();
   const [profile, setProfile] = useState(null);
   const [comentarios, setComentarios] = useState([]);
   const [media, setMedia] = useState(null);
@@ -2245,7 +2298,8 @@ const ProfilePage = () => {
 
   const handleDeleteComentario = async (comentarioId) => {
     if (!comentarioId) return;
-    if (!window.confirm('Excluir este comentário?')) return;
+    const confirmed = await confirm('Excluir este comentário?', { danger: true, confirmLabel: 'Excluir' });
+    if (!confirmed) return;
     try {
       await deleteComentarioPerfil(comentarioId);
       await loadProfile();
@@ -2429,8 +2483,14 @@ const ProfilePage = () => {
 
 const NegotiationInbox = ({ role }) => {
   const { user, openNegotiation } = useApp();
+  const confirm = useConfirm();
+  const toast = useToast();
   const [conversas, setConversas] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
+  const [reportTarget, setReportTarget] = useState(null);
+  const [reportReason, setReportReason] = useState('');
+  const [reportLoading, setReportLoading] = useState(false);
 
   const loadConversas = useCallback(async () => {
     if (!user?.id) return;
@@ -2453,6 +2513,59 @@ const NegotiationInbox = ({ role }) => {
     const timer = setInterval(loadConversas, 5000);
     return () => clearInterval(timer);
   }, [loadConversas]);
+  const visibleConversas = useMemo(
+    () => conversas.filter((conversa) => conversa.status !== 'CANCELADO'),
+    [conversas]
+  );
+
+  const handleDeleteConversa = async (event, conversa) => {
+    event.stopPropagation();
+    if (!user?.id) return;
+    const confirmed = await confirm(
+      'Excluir este chat da sua lista? Ele só some para você, a outra parte continua vendo a conversa normalmente.',
+      { title: 'Excluir conversa', confirmLabel: 'Excluir', danger: true }
+    );
+    if (!confirmed) return;
+    setDeletingId(conversa.id);
+    try {
+      await excluirNegociacao(conversa.id, user.id);
+      setConversas((prev) => prev.filter((item) => item.id !== conversa.id));
+      toast.success('Conversa removida da sua lista.');
+    } catch (err) {
+      toast.error(err.message || 'Erro ao excluir conversa.');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const openReport = (event, conversa) => {
+    event.stopPropagation();
+    setReportTarget(conversa);
+    setReportReason('');
+  };
+
+  const closeReport = () => {
+    setReportTarget(null);
+    setReportReason('');
+  };
+
+  const submitReport = async (event) => {
+    event.preventDefault();
+    if (!reportTarget || !user?.id) return;
+    setReportLoading(true);
+    try {
+      await denunciarNegociacao(reportTarget.id, {
+        usuarioId: user.id,
+        motivo: reportReason
+      });
+      toast.success('Denúncia enviada. O administrador vai revisar essa conversa.');
+      closeReport();
+    } catch (err) {
+      toast.error(err.message || 'Erro ao enviar denúncia.');
+    } finally {
+      setReportLoading(false);
+    }
+  };
 
   return (
     <div className="panel negotiation-inbox">
@@ -2460,8 +2573,8 @@ const NegotiationInbox = ({ role }) => {
         <div>
           <h2>Negociações</h2>
           <p>
-            {conversas.length > 0
-              ? `${conversas.length} conversa${conversas.length > 1 ? 's' : ''} em andamento`
+            {visibleConversas.length > 0
+              ? `${visibleConversas.length} conversa${visibleConversas.length > 1 ? 's' : ''} em andamento`
               : 'Converse com o revendedor antes do pagamento'}
           </p>
         </div>
@@ -2469,14 +2582,14 @@ const NegotiationInbox = ({ role }) => {
           {loading ? 'Atualizando...' : 'Atualizar'}
         </button>
       </div>
-      {conversas.length === 0 ? (
+      {visibleConversas.length === 0 ? (
         <div className="empty-state compact negotiation-empty">
           <MessageSquare size={34} />
           <p>Nenhuma negociação em andamento.</p>
         </div>
       ) : (
         <div className="negotiation-list">
-          {conversas.map((conversa) => {
+          {visibleConversas.map((conversa) => {
             const contactName =
               role === 'REVENDEDOR' ? conversa.clienteNome : conversa.revendedorNome;
             const contactLabel = role === 'REVENDEDOR' ? 'Cliente' : 'Revendedor';
@@ -2484,30 +2597,86 @@ const NegotiationInbox = ({ role }) => {
             const negotiationDate = conversa.atualizadaEm || conversa.criadaEm;
 
             return (
-              <button
-                key={conversa.id}
-                className="negotiation-row"
-                onClick={() => openNegotiation(conversa.id)}
-              >
-                <span className="negotiation-main">
-                  <strong>{conversa.pecaNome || 'Peça em negociação'}</strong>
-                  <small>{contactLabel}: {contactName || 'Não informado'}</small>
-                  <span className="negotiation-meta">
-                    {negotiationDate && <em>{formatDate(negotiationDate)}</em>}
-                    {negotiationValue !== null && <em>{formatPrice(negotiationValue)}</em>}
+              <div key={conversa.id} className="negotiation-row-wrapper">
+                <button
+                  className="negotiation-row"
+                  onClick={() => openNegotiation(conversa.id)}
+                >
+                  <span className="negotiation-main">
+                    <strong>{conversa.pecaNome || 'Peça em negociação'}</strong>
+                    <small>{contactLabel}: {contactName || 'Não informado'}</small>
+                    <span className="negotiation-meta">
+                      {negotiationDate && <em>{formatDate(negotiationDate)}</em>}
+                      {negotiationValue !== null && <em>{formatPrice(negotiationValue)}</em>}
+                    </span>
                   </span>
-                </span>
-                <span className="negotiation-row-side">
-                  {conversa.naoLidas > 0 && (
-                    <span className="unread-badge">{conversa.naoLidas}</span>
-                  )}
-                  <span className={`status-pill ${getStatusPillClass(conversa.status)}`}>
-                    {formatStatusLabel(conversa.status)}
+                  <span className="negotiation-row-side">
+                    {conversa.naoLidas > 0 && (
+                      <span className="unread-badge">{conversa.naoLidas}</span>
+                    )}
+                    <span className={`status-pill ${getStatusPillClass(conversa.status)}`}>
+                      {formatStatusLabel(conversa.status)}
+                    </span>
                   </span>
+                </button>
+                <span className="negotiation-row-tools">
+                  <button
+                    type="button"
+                    className="icon-btn"
+                    title="Denunciar esta conversa"
+                    aria-label="Denunciar conversa"
+                    onClick={(event) => openReport(event, conversa)}
+                  >
+                    <Flag size={16} />
+                  </button>
+                  <button
+                    type="button"
+                    className="icon-btn"
+                    title="Excluir este chat da sua lista"
+                    aria-label="Excluir conversa"
+                    onClick={(event) => handleDeleteConversa(event, conversa)}
+                    disabled={deletingId === conversa.id}
+                  >
+                    <Trash2 size={16} />
+                  </button>
                 </span>
-              </button>
+              </div>
             );
           })}
+        </div>
+      )}
+
+      {reportTarget && (
+        <div className="modal-backdrop" onClick={closeReport}>
+          <form className="report-modal" onSubmit={submitReport} onClick={(event) => event.stopPropagation()}>
+            <div className="modal-head">
+              <h3>Denunciar conversa</h3>
+              <button type="button" className="icon-btn" onClick={closeReport}>
+                <X size={18} />
+              </button>
+            </div>
+            <p>
+              A denúncia é enviada para o administrador junto com o histórico desta
+              conversa com {role === 'REVENDEDOR' ? (reportTarget.clienteNome || 'o cliente') : (reportTarget.revendedorNome || 'o revendedor')}.
+            </p>
+            <label>
+              Motivo
+              <textarea
+                value={reportReason}
+                onChange={(event) => setReportReason(event.target.value)}
+                placeholder="Explique o que aconteceu nessa conversa"
+                rows="4"
+              />
+            </label>
+            <div className="table-actions">
+              <button type="button" className="ghost-btn" onClick={closeReport}>
+                Cancelar
+              </button>
+              <button type="submit" className="cta-btn" disabled={reportLoading}>
+                {reportLoading ? 'Enviando...' : 'Enviar denuncia'}
+              </button>
+            </div>
+          </form>
         </div>
       )}
     </div>
@@ -2571,23 +2740,113 @@ const OrderStageTabs = ({ pedido }) => {
   );
 };
 
+const NEGOTIATION_STAGE_STATUSES = ['AGUARDANDO_NEGOCIACAO', 'PENDENTE'];
+
 const OrderCard = ({
   pedido,
   partyName,
   partyType,
   onOpenProfile,
   onOpenNegotiation,
+  onCancelled,
   action,
   note,
   requiresAction = false,
   actionHint = ''
 }) => {
+  const { user } = useApp();
+  const confirm = useConfirm();
+  const toast = useToast();
+  const [chatRemoved, setChatRemoved] = useState(false);
+  const [deletingChat, setDeletingChat] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportReason, setReportReason] = useState('');
+  const [reportLoading, setReportLoading] = useState(false);
+
   const displayName = partyName || partyType || 'Contato';
   const total = getPedidoTotal(pedido);
   const title = getPedidoTitle(pedido);
   const profileLabel = partyType
     ? `Ver perfil do ${partyType.toLowerCase()}`
     : 'Ver perfil';
+  const chatOcultoNoServidor =
+    user?.tipo === 'REVENDEDOR'
+      ? Boolean(pedido.chatOcultoParaRevendedor)
+      : Boolean(pedido.chatOcultoParaCliente);
+  const hasChat =
+    Boolean(pedido.conversaId) &&
+    !chatRemoved &&
+    !chatOcultoNoServidor &&
+    pedido.status !== 'CANCELADO';
+  const isNegotiationStage = NEGOTIATION_STAGE_STATUSES.includes(pedido.status);
+
+  const handleDeleteChat = async () => {
+    if (!user?.id || !pedido.conversaId) return;
+
+    if (isNegotiationStage) {
+      const confirmed = await confirm(
+        'Cancelar esta negociação? O pedido será marcado como cancelado para você e para a outra parte. Essa ação não pode ser desfeita.',
+        { title: 'Cancelar pedido', confirmLabel: 'Cancelar pedido', danger: true }
+      );
+      if (!confirmed) return;
+      setDeletingChat(true);
+      try {
+        await encerrarNegociacao(pedido.conversaId, user.id, 'CANCELADO');
+        await cancelarPedido(pedido.id);
+        toast.success('Pedido e negociação cancelados.');
+        onCancelled?.(pedido.id);
+      } catch (err) {
+        toast.error(err.message || 'Erro ao cancelar o pedido.');
+      } finally {
+        setDeletingChat(false);
+      }
+      return;
+    }
+
+    const confirmed = await confirm(
+      'Apagar este chat da sua lista? Ele só some para você, a outra parte continua vendo a conversa normalmente.',
+      { title: 'Apagar chat', confirmLabel: 'Apagar', danger: true }
+    );
+    if (!confirmed) return;
+    setDeletingChat(true);
+    try {
+      await excluirNegociacao(pedido.conversaId, user.id);
+      setChatRemoved(true);
+      toast.success('Chat apagado da sua lista.');
+    } catch (err) {
+      toast.error(err.message || 'Erro ao apagar o chat.');
+    } finally {
+      setDeletingChat(false);
+    }
+  };
+
+  const openReport = () => {
+    setReportReason('');
+    setReportOpen(true);
+  };
+
+  const closeReport = () => {
+    setReportOpen(false);
+    setReportReason('');
+  };
+
+  const submitReport = async (event) => {
+    event.preventDefault();
+    if (!user?.id || !pedido.conversaId) return;
+    setReportLoading(true);
+    try {
+      await denunciarNegociacao(pedido.conversaId, {
+        usuarioId: user.id,
+        motivo: reportReason
+      });
+      toast.success('Denúncia enviada. O administrador vai revisar essa conversa.');
+      closeReport();
+    } catch (err) {
+      toast.error(err.message || 'Erro ao enviar denúncia.');
+    } finally {
+      setReportLoading(false);
+    }
+  };
 
   return (
     <article className={`order-card ${requiresAction ? 'needs-action' : ''}`}>
@@ -2614,7 +2873,11 @@ const OrderCard = ({
         </div>
       </div>
 
-      <OrderStageTabs pedido={pedido} />
+      {pedido.status === 'CANCELADO' ? (
+        <p className="meta-note">Este pedido foi cancelado.</p>
+      ) : (
+        <OrderStageTabs pedido={pedido} />
+      )}
 
       <div className="order-card-actions">
         <div className="order-actions-left">
@@ -2623,7 +2886,7 @@ const OrderCard = ({
               {profileLabel}
             </button>
           )}
-          {pedido.conversaId && onOpenNegotiation && (
+          {hasChat && onOpenNegotiation && (
             <button
               className={`ghost-btn small ${requiresAction ? 'soft-emphasis' : ''}`}
               onClick={onOpenNegotiation}
@@ -2631,12 +2894,72 @@ const OrderCard = ({
               Abrir chat
             </button>
           )}
+          {hasChat && (
+            <>
+              <button
+                type="button"
+                className="icon-btn"
+                title="Denunciar esta conversa"
+                aria-label="Denunciar conversa"
+                onClick={openReport}
+              >
+                <Flag size={16} />
+              </button>
+              <button
+                type="button"
+                className="icon-btn"
+                title={isNegotiationStage ? 'Cancelar pedido e apagar chat' : 'Apagar este chat da sua lista'}
+                aria-label={isNegotiationStage ? 'Cancelar pedido e apagar chat' : 'Apagar chat'}
+                onClick={handleDeleteChat}
+                disabled={deletingChat}
+              >
+                <Trash2 size={16} />
+              </button>
+            </>
+          )}
+          {(chatRemoved || chatOcultoNoServidor) && Boolean(pedido.conversaId) && (
+            <span className="meta-note">Chat apagado da sua lista.</span>
+          )}
         </div>
         <div className="order-actions-right">
           {actionHint && <span className="meta-note action-hint">{actionHint}</span>}
           {action || (!actionHint && note && <span className="meta-note">{note}</span>)}
         </div>
       </div>
+
+      {reportOpen && (
+        <div className="modal-backdrop" onClick={closeReport}>
+          <form className="report-modal" onSubmit={submitReport} onClick={(event) => event.stopPropagation()}>
+            <div className="modal-head">
+              <h3>Denunciar conversa</h3>
+              <button type="button" className="icon-btn" onClick={closeReport}>
+                <X size={18} />
+              </button>
+            </div>
+            <p>
+              A denúncia é enviada para o administrador junto com o histórico desta
+              conversa com {displayName}.
+            </p>
+            <label>
+              Motivo
+              <textarea
+                value={reportReason}
+                onChange={(event) => setReportReason(event.target.value)}
+                placeholder="Explique o que aconteceu nessa conversa"
+                rows="4"
+              />
+            </label>
+            <div className="table-actions">
+              <button type="button" className="ghost-btn" onClick={closeReport}>
+                Cancelar
+              </button>
+              <button type="submit" className="cta-btn" disabled={reportLoading}>
+                {reportLoading ? 'Enviando...' : 'Enviar denuncia'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </article>
   );
 };
@@ -3025,13 +3348,17 @@ const NegotiationPage = () => {
 };
 
 const NegotiationChat = ({ conversaId }) => {
-  const { user } = useApp();
+  const { user, setCurrentPage } = useApp();
+  const confirm = useConfirm();
+  const toast = useToast();
   const [conversa, setConversa] = useState(null);
   const [conteudo, setConteudo] = useState('');
   const [valor, setValor] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
+  const messageListRef = useRef(null);
+  const lastMessageIdRef = useRef(null);
 
   const loadConversa = useCallback(async () => {
     if (!conversaId || !user?.id) {
@@ -3055,6 +3382,16 @@ const NegotiationChat = ({ conversaId }) => {
     const timer = setInterval(loadConversa, 3000);
     return () => clearInterval(timer);
   }, [loadConversa]);
+
+  useEffect(() => {
+    const mensagens = conversa?.mensagens || [];
+    const last = mensagens[mensagens.length - 1];
+    if (!last || last.id === lastMessageIdRef.current) return;
+    lastMessageIdRef.current = last.id;
+    if (messageListRef.current) {
+      messageListRef.current.scrollTop = messageListRef.current.scrollHeight;
+    }
+  }, [conversa]);
 
   const send = async (event) => {
     event.preventDefault();
@@ -3083,12 +3420,24 @@ const NegotiationChat = ({ conversaId }) => {
   };
 
   const action = async (type) => {
+    if (type === 'cancelar') {
+      const confirmed = await confirm(
+        'Encerrar esta negociação? O chat vai sumir da sua lista de negociações.',
+        { title: 'Encerrar negociação', confirmLabel: 'Encerrar', danger: true }
+      );
+      if (!confirmed) return;
+    }
     setSending(true);
     setError('');
     try {
       if (type === 'aprovar') await aprovarNegociacao(conversaId, user.id);
       if (type === 'recusar') await recusarNegociacao(conversaId, user.id);
-      if (type === 'cancelar') await encerrarNegociacao(conversaId, user.id, 'CANCELADO');
+      if (type === 'cancelar') {
+        await encerrarNegociacao(conversaId, user.id, 'CANCELADO');
+        toast.info('Negociação encerrada.');
+        setCurrentPage('dashboard');
+        return;
+      }
       await loadConversa();
     } catch (err) {
       setError(err.message || 'Erro ao atualizar negociação');
@@ -3105,29 +3454,62 @@ const NegotiationChat = ({ conversaId }) => {
     return <div className="empty-state">Negociação não encontrada.</div>;
   }
 
-  const bothApproved = Boolean(conversa.aprovacaoCliente) && Boolean(conversa.aprovacaoRevendedor);
-  const locked = conversa.status === 'FECHADO' || conversa.status === 'CANCELADO' || bothApproved;
+  const isCliente = user.tipo !== 'REVENDEDOR';
+  const userApproved = isCliente ? Boolean(conversa.aprovacaoCliente) : Boolean(conversa.aprovacaoRevendedor);
+  const otherApproved = isCliente ? Boolean(conversa.aprovacaoRevendedor) : Boolean(conversa.aprovacaoCliente);
+  const otherName = isCliente ? (conversa.revendedorNome || 'o revendedor') : (conversa.clienteNome || 'o cliente');
+  const bothApproved = userApproved && otherApproved;
+  const isClosed = conversa.status === 'FECHADO' || conversa.status === 'CANCELADO';
+  const locked = isClosed || bothApproved;
+
+  const mensagens = conversa.mensagens || [];
+  const lastMessage = mensagens[mensagens.length - 1];
+  const waitingOnMe = !locked && lastMessage && lastMessage.remetenteId !== user.id && !userApproved;
+
+  let banner = null;
+  if (conversa.status === 'CANCELADO') {
+    banner = { tone: 'inactive', text: 'Esta negociação foi cancelada.' };
+  } else if (conversa.status === 'FECHADO') {
+    banner = { tone: 'active', text: 'Negociação fechada.' };
+  } else if (bothApproved) {
+    banner = { tone: 'active', text: 'Termos aprovados pelos dois lados. Pagamento liberado no pedido.' };
+  } else if (userApproved && !otherApproved) {
+    banner = { tone: 'neutral', text: `Você aprovou os termos. Aguardando aprovação de ${otherName}.` };
+  } else if (!userApproved && otherApproved) {
+    banner = { tone: 'neutral', text: `${otherName} aprovou os termos. Revise e aprove para liberar o pagamento.` };
+  } else if (waitingOnMe) {
+    banner = { tone: 'neutral', text: 'É a sua vez de responder.' };
+  } else if (lastMessage && lastMessage.remetenteId === user.id) {
+    banner = { tone: 'neutral', text: `Aguardando resposta de ${otherName}.` };
+  }
 
   return (
     <div className="negotiation-chat panel">
       <div className="negotiation-head">
         <div>
           <h1>{conversa.pecaNome}</h1>
-          <p>
-            Original: {formatPrice(conversa.valorOriginal)} | Negociado:{' '}
-            {conversa.valorFinalAcordado
-              ? formatPrice(conversa.valorFinalAcordado)
-              : conversa.valorNegociado
-                ? formatPrice(conversa.valorNegociado)
-                : 'sem proposta'}
-          </p>
-          <div className="approval-line">
-            <span className={`status-pill ${conversa.aprovacaoCliente ? 'active' : 'inactive'}`}>
+          <div className="negotiation-price-row">
+            {conversa.valorFinalAcordado ? (
+              <span className="price-current">{formatPrice(conversa.valorFinalAcordado)}</span>
+            ) : conversa.valorNegociado && conversa.valorNegociado !== conversa.valorOriginal ? (
+              <>
+                <span className="price-original">{formatPrice(conversa.valorOriginal)}</span>
+                <span className="price-current">{formatPrice(conversa.valorNegociado)}</span>
+              </>
+            ) : (
+              <span className="price-current">{formatPrice(conversa.valorOriginal)}</span>
+            )}
+          </div>
+          <div className="approval-track">
+            <div className={`approval-step ${conversa.aprovacaoCliente ? 'done' : ''}`}>
+              {conversa.aprovacaoCliente ? <Check size={13} /> : <Clock3 size={13} />}
               Cliente {conversa.aprovacaoCliente ? 'aprovou' : 'pendente'}
-            </span>
-            <span className={`status-pill ${conversa.aprovacaoRevendedor ? 'active' : 'inactive'}`}>
+            </div>
+            <div className={`approval-connector ${bothApproved ? 'done' : ''}`} />
+            <div className={`approval-step ${conversa.aprovacaoRevendedor ? 'done' : ''}`}>
+              {conversa.aprovacaoRevendedor ? <Check size={13} /> : <Clock3 size={13} />}
               Revendedor {conversa.aprovacaoRevendedor ? 'aprovou' : 'pendente'}
-            </span>
+            </div>
           </div>
         </div>
         <span className={`status-pill ${getStatusPillClass(conversa.status)}`}>
@@ -3135,60 +3517,82 @@ const NegotiationChat = ({ conversaId }) => {
         </span>
       </div>
 
+      {banner && <div className={`negotiation-banner ${banner.tone}`}>{banner.text}</div>}
+
       {error && <div className="error-message">{error}</div>}
 
-      <div className="message-list">
-        {conversa.mensagens.map((mensagem) => {
+      <div className="message-list" ref={messageListRef}>
+        {mensagens.map((mensagem) => {
+          if (mensagem.tipo === 'SISTEMA') {
+            return (
+              <div key={mensagem.id} className="system-message">
+                <span>{mensagem.conteudo}</span>
+              </div>
+            );
+          }
+
           const mine = mensagem.remetenteId === user.id;
+          const typeMeta = getMessageTypeMeta(mensagem.tipo);
           return (
             <div key={mensagem.id} className={`message-bubble ${mine ? 'mine' : ''}`}>
               <div className="message-meta">
-                <strong>{mensagem.remetenteNome}</strong>
+                <strong>{mine ? 'Você' : mensagem.remetenteNome}</strong>
                 <span>{formatDateTime(mensagem.dataEnvio)}</span>
               </div>
-              <p>{mensagem.conteudo}</p>
+              {typeMeta && <span className={`message-tag ${typeMeta.className}`}>{typeMeta.label}</span>}
+              {mensagem.conteudo && <p>{mensagem.conteudo}</p>}
               {mensagem.valorProposto !== null && mensagem.valorProposto !== undefined && (
                 <span className="proposal-chip">{formatPrice(mensagem.valorProposto)}</span>
               )}
-              <small>{mensagem.lida ? 'Lida' : 'Não lida'} | {formatStatusLabel(mensagem.statusNegociacao)}</small>
+              {mine && (
+                <small className="read-receipt">
+                  {mensagem.lida ? <CheckCheck size={12} /> : <Check size={12} />}
+                  {mensagem.lida ? 'Lida' : 'Enviada'}
+                </small>
+              )}
             </div>
           );
         })}
       </div>
 
       <div className="negotiation-actions">
-        <button className="cta-btn small" onClick={() => action('aprovar')} disabled={locked || sending}>
-          Aprovar termos
-        </button>
+        {userApproved ? (
+          <span className="meta-chip approved-chip"><Check size={14} /> Você já aprovou</span>
+        ) : (
+          <button className="cta-btn small" onClick={() => action('aprovar')} disabled={locked || sending}>
+            <Check size={15} /> Aprovar termos
+          </button>
+        )}
         <button className="ghost-btn small" onClick={() => action('recusar')} disabled={locked || sending}>
-          Recusar
+          <XCircle size={15} /> Recusar
         </button>
         <button className="ghost-btn small" onClick={() => action('cancelar')} disabled={locked || sending}>
           Encerrar
         </button>
-        {bothApproved && (
-          <span className="meta-chip">Pagamento liberado no pedido</span>
-        )}
       </div>
 
       <form className="chat-form" onSubmit={send}>
-        <input
-          type="number"
-          min="0"
-          step="0.01"
-          value={valor}
-          onChange={(e) => setValor(e.target.value)}
-          placeholder={user.tipo === 'REVENDEDOR' ? 'Contraproposta' : 'Proposta'}
-          disabled={locked}
-        />
+        <div className="chat-form-value">
+          <span className="chat-form-currency">R$</span>
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            value={valor}
+            onChange={(e) => setValor(e.target.value)}
+            placeholder={user.tipo === 'REVENDEDOR' ? 'Contraproposta' : 'Proposta'}
+            disabled={locked}
+          />
+        </div>
         <textarea
           rows="2"
           value={conteudo}
           onChange={(e) => setConteudo(e.target.value)}
-          placeholder="Mensagem"
+          placeholder="Escreva uma mensagem..."
           disabled={locked}
         />
-        <button className="cta-btn" type="submit" disabled={locked || sending}>
+        <button className="cta-btn send-btn" type="submit" disabled={locked || sending}>
+          <Send size={16} />
           {sending ? 'Enviando...' : 'Enviar'}
         </button>
       </form>
@@ -3199,6 +3603,7 @@ const NegotiationChat = ({ conversaId }) => {
 const ClienteDashboard = () => {
   const { user, openProfile, openNegotiation } = useApp();
   const toast = useToast();
+  const confirm = useConfirm();
   const [activeSection, setActiveSection] = useState('overview');
   const [pedidos, setPedidos] = useState([]);
   const [conversas, setConversas] = useState([]);
@@ -3237,7 +3642,10 @@ const ClienteDashboard = () => {
 
   const handleInformarPagamento = async (pedidoId) => {
     if (!pedidoId) return;
-    if (!window.confirm('Marcar pagamento como efetuado?')) return;
+    const confirmed = await confirm('Marcar pagamento como efetuado?', {
+      confirmLabel: 'Marcar como pago'
+    });
+    if (!confirmed) return;
     setPayingId(pedidoId);
     try {
       await informarPagamentoPedido(pedidoId, user.id);
@@ -3252,11 +3660,13 @@ const ClienteDashboard = () => {
 
   const orderedPedidos = useMemo(
     () =>
-      [...pedidos].sort((a, b) => {
-        const priorityDiff = getClientOrderPriority(a) - getClientOrderPriority(b);
-        if (priorityDiff !== 0) return priorityDiff;
-        return new Date(b.dataCriacao || 0).getTime() - new Date(a.dataCriacao || 0).getTime();
-      }),
+      pedidos
+        .slice()
+        .sort((a, b) => {
+          const priorityDiff = getClientOrderPriority(a) - getClientOrderPriority(b);
+          if (priorityDiff !== 0) return priorityDiff;
+          return new Date(b.dataCriacao || 0).getTime() - new Date(a.dataCriacao || 0).getTime();
+        }),
     [pedidos]
   );
   const actionCount = orderedPedidos.filter(
@@ -3269,10 +3679,11 @@ const ClienteDashboard = () => {
     (sum, pedido) => sum + Number(getPedidoTotal(pedido) || 0),
     0
   );
+  const conversasAtivas = conversas.filter((conversa) => conversa.status !== 'CANCELADO');
   const clientTabs = [
     { id: 'overview', label: 'Visão geral', icon: LayoutDashboard },
     { id: 'orders', label: 'Meus pedidos', icon: ClipboardList, count: pedidos.length },
-    { id: 'negotiations', label: 'Negociações', icon: MessageSquare, count: conversas.length },
+    { id: 'negotiations', label: 'Negociações', icon: MessageSquare, count: conversasAtivas.length },
     { id: 'profile', label: 'Meu perfil', icon: User }
   ];
 
@@ -3324,6 +3735,13 @@ const ClienteDashboard = () => {
                   onOpenNegotiation={
                     pedido.conversaId ? () => openNegotiation(pedido.conversaId) : null
                   }
+                  onCancelled={(pedidoId) =>
+                    setPedidos((prev) =>
+                      prev.map((item) =>
+                        item.id === pedidoId ? { ...item, status: 'CANCELADO' } : item
+                      )
+                    )
+                  }
                   action={
                     canInformPayment ? (
                       <button
@@ -3360,7 +3778,7 @@ const ClienteDashboard = () => {
         </div>
         <div className="stat-card dashboard-stat">
           <span className="stat-label">Negociações</span>
-          <strong className="stat-number">{loadingConversas ? '...' : conversas.length}</strong>
+          <strong className="stat-number">{loadingConversas ? '...' : conversasAtivas.length}</strong>
           <p>Conversas abertas com revendedores</p>
         </div>
         <div className="stat-card dashboard-stat">
@@ -3434,6 +3852,7 @@ const ClienteDashboard = () => {
 const RevendedorDashboard = () => {
   const { user, openProfile, openNegotiation } = useApp();
   const toast = useToast();
+  const confirm = useConfirm();
   const [activeSection, setActiveSection] = useState('overview');
   const [pecas, setPecas] = useState([]);
   const [pedidos, setPedidos] = useState([]);
@@ -3570,7 +3989,8 @@ const RevendedorDashboard = () => {
   }, [editingPeca]);
 
   const handleDelete = async (pecaId) => {
-    if (window.confirm('Deseja excluir esta peça?')) {
+    const confirmed = await confirm('Deseja excluir esta peça?', { danger: true, confirmLabel: 'Excluir' });
+    if (confirmed) {
       try {
         await deletePeca(pecaId);
         loadPecas();
@@ -3673,7 +4093,10 @@ const RevendedorDashboard = () => {
 
   const handleConfirmarPagamento = async (pedidoId) => {
     if (!pedidoId) return;
-    if (!window.confirm('Confirmar pagamento deste pedido?')) return;
+    const confirmed = await confirm('Confirmar pagamento deste pedido?', {
+      confirmLabel: 'Confirmar pagamento'
+    });
+    if (!confirmed) return;
     setConfirmingId(pedidoId);
     try {
       await confirmarPagamentoPedido(pedidoId);
@@ -3798,6 +4221,8 @@ const RevendedorDashboard = () => {
     </div>
   );
 
+  const pedidosVisiveis = pedidos;
+
   const renderOrders = () => (
     <div className="panel dealer-section-panel">
       <div className="panel-header section-panel-header">
@@ -3811,21 +4236,22 @@ const RevendedorDashboard = () => {
       </div>
       {loadingPedidos ? (
         <p>Carregando pedidos...</p>
-      ) : pedidos.length === 0 ? (
+      ) : pedidosVisiveis.length === 0 ? (
         <div className="empty-state compact">
           <ClipboardList size={34} />
           <p>Nenhum pedido recebido.</p>
         </div>
       ) : (
         <div className="order-list dealer-order-list">
-          {pedidos.map((pedido) => {
+          {pedidosVisiveis.map((pedido) => {
             const canConfirmPayment = pedido.status === 'PAGAMENTO_INFORMADO_CLIENTE';
-            const note =
-              pedido.status === 'PAGAMENTO_CONFIRMADO'
-                ? 'Pagamento confirmado'
-                : pedido.status === 'PAGAMENTO_LIBERADO'
-                  ? 'Aguardando cliente informar pagamento'
-                  : 'Aguardando negociação';
+            const note = canConfirmPayment
+              ? ''
+              : pedido.status === 'PAGAMENTO_LIBERADO'
+                ? 'Aguardando cliente informar pagamento'
+                : ['AGUARDANDO_NEGOCIACAO', 'PENDENTE'].includes(pedido.status)
+                  ? 'Aguardando negociação'
+                  : formatStatusLabel(pedido.status);
 
             return (
               <OrderCard
@@ -3838,6 +4264,13 @@ const RevendedorDashboard = () => {
                 }
                 onOpenNegotiation={
                   pedido.conversaId ? () => openNegotiation(pedido.conversaId) : null
+                }
+                onCancelled={(pedidoId) =>
+                  setPedidos((prev) =>
+                    prev.map((item) =>
+                      item.id === pedidoId ? { ...item, status: 'CANCELADO' } : item
+                    )
+                  )
                 }
                 action={
                   canConfirmPayment ? (
@@ -3925,6 +4358,7 @@ const RevendedorDashboard = () => {
 const AdminPage = () => {
   const { user, authToken, setCurrentPage, logout } = useApp();
   const toast = useToast();
+  const confirm = useConfirm();
   const [dashboard, setDashboard] = useState(null);
   const [usuarios, setUsuarios] = useState([]);
   const [revendedores, setRevendedores] = useState([]);
@@ -3997,7 +4431,8 @@ const AdminPage = () => {
 
   const handleRemoveUsuario = async (usuario) => {
     if (!usuario?.id) return;
-    if (!window.confirm(`Remover o usuario ${usuario.nome}?`)) return;
+    const confirmed = await confirm(`Remover o usuario ${usuario.nome}?`, { danger: true, confirmLabel: 'Remover' });
+    if (!confirmed) return;
     try {
       await deleteAdminUsuario(usuario.id);
       loadData();
@@ -4008,7 +4443,8 @@ const AdminPage = () => {
 
   const handleRemoveRevendedor = async (revendedor) => {
     if (!revendedor?.id) return;
-    if (!window.confirm(`Remover o revendedor ${revendedor.nome}?`)) return;
+    const confirmed = await confirm(`Remover o revendedor ${revendedor.nome}?`, { danger: true, confirmLabel: 'Remover' });
+    if (!confirmed) return;
     try {
       await deleteAdminRevendedor(revendedor.id);
       loadData();
@@ -4035,7 +4471,7 @@ const AdminPage = () => {
         }
         valor = parsed;
       }
-    } else if (!window.confirm(`Zerar todas as taxas de ${revendedor.nome}?`)) {
+    } else if (!(await confirm(`Zerar todas as taxas de ${revendedor.nome}?`, { confirmLabel: 'Zerar taxas' }))) {
       return;
     }
 
@@ -4066,7 +4502,8 @@ const AdminPage = () => {
 
   const handleDesativarPremium = async (revendedor) => {
     if (!revendedor?.id) return;
-    if (!window.confirm(`Desativar premium de ${revendedor.nome}?`)) return;
+    const confirmed = await confirm(`Desativar premium de ${revendedor.nome}?`, { confirmLabel: 'Desativar' });
+    if (!confirmed) return;
     try {
       await desativarPremiumRevendedor(revendedor.id);
       loadData();
@@ -4099,7 +4536,8 @@ const AdminPage = () => {
 
   const handleRemoveMensagem = async (alerta) => {
     if (!alerta.mensagemId) return;
-    if (!window.confirm('Remover a mensagem sinalizada?')) return;
+    const confirmed = await confirm('Remover a mensagem sinalizada?', { danger: true, confirmLabel: 'Remover' });
+    if (!confirmed) return;
     try {
       await removerMensagemModeracao(alerta.mensagemId);
       await handleAlertStatus(alerta, 'RESOLVIDO');
@@ -4110,7 +4548,8 @@ const AdminPage = () => {
 
   const handleRemoveImagemDenunciada = async (alerta) => {
     if (!alerta.pecaId || !alerta.imagemUrl) return;
-    if (!window.confirm('Remover a imagem denunciada da peça?')) return;
+    const confirmed = await confirm('Remover a imagem denunciada da peça?', { danger: true, confirmLabel: 'Remover' });
+    if (!confirmed) return;
     try {
       await removePecaImagem(alerta.pecaId, alerta.imagemUrl);
       await handleAlertStatus(alerta, 'RESOLVIDO');
@@ -4120,7 +4559,8 @@ const AdminPage = () => {
   };
 
   const handleSuspendUser = async (alerta) => {
-    if (!window.confirm(`Suspender ${alerta.usuarioNome}?`)) return;
+    const confirmed = await confirm(`Suspender ${alerta.usuarioNome}?`, { danger: true, confirmLabel: 'Suspender' });
+    if (!confirmed) return;
     try {
       await suspenderUsuarioModeracao(alerta.usuarioId);
       await handleAlertStatus(alerta, 'RESOLVIDO');
@@ -4271,6 +4711,9 @@ const AdminPage = () => {
                   <span className={`status-pill ${getStatusPillClass(alerta.status)}`}>
                     {formatStatusLabel(alerta.status)}
                   </span>
+                  {alerta.denunciaManual && (
+                    <span className="meta-chip"><Flag size={12} /> Denúncia manual</span>
+                  )}
                 </div>
                 <p>{highlightTerm(alerta.mensagemEnviada, alerta.palavraDetectada)}</p>
                 {alerta.imagemUrl && (
@@ -4299,11 +4742,11 @@ const AdminPage = () => {
                     <button className="ghost-btn small" onClick={() => handleRemoveImagemDenunciada(alerta)}>
                       Remover imagem
                     </button>
-                  ) : (
+                  ) : alerta.mensagemId ? (
                     <button className="ghost-btn small" onClick={() => handleRemoveMensagem(alerta)}>
                       Remover mensagem
                     </button>
-                  )}
+                  ) : null}
                   <button className="cta-btn small" onClick={() => handleSuspendUser(alerta)}>
                     Suspender usuario
                   </button>

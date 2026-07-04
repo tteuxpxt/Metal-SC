@@ -12,6 +12,8 @@ import org.springframework.stereotype.Repository;
 public interface AlertaModeracaoRepository extends JpaRepository<AlertaModeracao, String> {
     List<AlertaModeracao> findAllByOrderByDataHoraDesc();
     List<AlertaModeracao> findByUsuarioIdOrderByDataHoraDesc(String usuarioId);
+    List<AlertaModeracao> findByConversaId(String conversaId);
+    List<AlertaModeracao> findByMensagem_ConversaId(String conversaId);
     List<AlertaModeracao> findByDataHoraBetweenOrderByDataHoraDesc(LocalDateTime inicio, LocalDateTime fim);
     List<AlertaModeracao> findByTipoInfracaoContainingIgnoreCaseOrderByDataHoraDesc(String tipoInfracao);
     List<AlertaModeracao> findByStatusOrderByDataHoraDesc(AlertaModeracaoStatus status);

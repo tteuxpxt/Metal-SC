@@ -59,6 +59,12 @@ public class ConversaNegociacao {
     @Column(nullable = false)
     private LocalDateTime atualizadaEm;
 
+    @Column(nullable = false)
+    private Boolean ocultaParaCliente = false;
+
+    @Column(nullable = false)
+    private Boolean ocultaParaRevendedor = false;
+
     @OneToMany(mappedBy = "conversa", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("dataEnvio ASC")
     private List<MensagemNegociacao> mensagens = new ArrayList<>();
@@ -120,6 +126,12 @@ public class ConversaNegociacao {
 
     public List<MensagemNegociacao> getMensagens() { return mensagens; }
     public void setMensagens(List<MensagemNegociacao> mensagens) { this.mensagens = mensagens; }
+
+    public Boolean getOcultaParaCliente() { return ocultaParaCliente; }
+    public void setOcultaParaCliente(Boolean ocultaParaCliente) { this.ocultaParaCliente = ocultaParaCliente; }
+
+    public Boolean getOcultaParaRevendedor() { return ocultaParaRevendedor; }
+    public void setOcultaParaRevendedor(Boolean ocultaParaRevendedor) { this.ocultaParaRevendedor = ocultaParaRevendedor; }
 
     @Override
     public boolean equals(Object o) {

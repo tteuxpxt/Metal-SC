@@ -134,6 +134,9 @@ export const uploadUsuarioFoto = async (usuarioId, file) => {
 export const confirmarPagamentoPedido = (pedidoId) =>
   request(`/pedidos/${pedidoId}/confirmar-pagamento`, { method: 'POST' });
 
+export const cancelarPedido = (pedidoId) =>
+  request(`/pedidos/${pedidoId}/cancelar`, { method: 'POST' });
+
 export const informarPagamentoPedido = (pedidoId, clienteId) => {
   const query = clienteId ? `?clienteId=${encodeURIComponent(clienteId)}` : '';
   return request(`/pedidos/${pedidoId}/informar-pagamento${query}`, { method: 'POST' });
@@ -313,6 +316,17 @@ export const encerrarNegociacao = (conversaId, usuarioId, status = 'CANCELADO') 
 export const marcarNegociacaoLida = (conversaId, usuarioId) =>
   request(`/negociacoes/${conversaId}/lidas?usuarioId=${encodeURIComponent(usuarioId)}`, {
     method: 'POST'
+  });
+
+export const excluirNegociacao = (conversaId, usuarioId) =>
+  request(`/negociacoes/${conversaId}?usuarioId=${encodeURIComponent(usuarioId)}`, {
+    method: 'DELETE'
+  });
+
+export const denunciarNegociacao = (conversaId, payload) =>
+  request(`/negociacoes/${conversaId}/denunciar`, {
+    method: 'POST',
+    body: JSON.stringify(payload)
   });
 
 export const fetchModeracaoAlertas = (filters = {}) => {

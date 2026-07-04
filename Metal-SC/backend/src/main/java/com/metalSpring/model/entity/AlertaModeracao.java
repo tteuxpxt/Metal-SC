@@ -20,6 +20,13 @@ public class AlertaModeracao {
     private MensagemNegociacao mensagem;
 
     @ManyToOne
+    @JoinColumn(name = "conversa_id")
+    private ConversaNegociacao conversa;
+
+    @Column(nullable = true)
+    private Boolean denunciaManual = false;
+
+    @ManyToOne
     @JoinColumn(name = "peca_id")
     private Peca peca;
 
@@ -70,6 +77,12 @@ public class AlertaModeracao {
 
     public MensagemNegociacao getMensagem() { return mensagem; }
     public void setMensagem(MensagemNegociacao mensagem) { this.mensagem = mensagem; }
+
+    public ConversaNegociacao getConversa() { return conversa; }
+    public void setConversa(ConversaNegociacao conversa) { this.conversa = conversa; }
+
+    public Boolean getDenunciaManual() { return denunciaManual; }
+    public void setDenunciaManual(Boolean denunciaManual) { this.denunciaManual = denunciaManual; }
 
     public Peca getPeca() { return peca; }
     public void setPeca(Peca peca) { this.peca = peca; }

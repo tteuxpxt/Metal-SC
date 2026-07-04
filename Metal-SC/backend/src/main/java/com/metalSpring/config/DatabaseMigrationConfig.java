@@ -24,6 +24,10 @@ public class DatabaseMigrationConfig {
         executar("ALTER TABLE alertas_moderacao ADD COLUMN peca_id VARCHAR(255) NULL");
         executar("ALTER TABLE alertas_moderacao ADD COLUMN peca_nome VARCHAR(255) NULL");
         executar("ALTER TABLE alertas_moderacao ADD COLUMN imagem_url VARCHAR(1000) NULL");
+        executar("ALTER TABLE alertas_moderacao ADD COLUMN conversa_id VARCHAR(255) NULL");
+        executar("ALTER TABLE alertas_moderacao ADD COLUMN denuncia_manual BIT(1) NULL");
+        executar("ALTER TABLE conversas_negociacao ADD COLUMN oculta_para_cliente BIT(1) NOT NULL DEFAULT 0");
+        executar("ALTER TABLE conversas_negociacao ADD COLUMN oculta_para_revendedor BIT(1) NOT NULL DEFAULT 0");
     }
 
     @PostConstruct

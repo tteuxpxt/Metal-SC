@@ -141,6 +141,7 @@ public class PedidoService {
                 && (!Boolean.TRUE.equals(pedido.getAprovacaoCliente())
                 || !Boolean.TRUE.equals(pedido.getAprovacaoRevendedor())
                 || (pedido.getStatus() != PedidoStatus.PAGAMENTO_CONFIRMADO
+                && pedido.getStatus() != PedidoStatus.EM_SEPARACAO
                 && pedido.getStatus() != PedidoStatus.EM_PREPARACAO))) {
             throw new RuntimeException("Pedido so pode avancar apos negociacao aprovada e pagamento confirmado");
         }
@@ -192,7 +193,7 @@ public class PedidoService {
         pedido.confirmarPagamento();
         pedido.setDataPagamento(LocalDateTime.now());
         pedido.setDataPagamentoConfirmado(LocalDateTime.now());
-        pedido.registrarEvento("Pagamento recebido confirmado");
+        pedido.registrarEvento("Pagamento confirmado. Pedido em separacao");
 
         if (pedido.getTaxaPlataforma() == null) {
             double baseCalculo = pedido.getValorFinalNegociado() != null ? pedido.getValorFinalNegociado() : pedido.getValorTotal();

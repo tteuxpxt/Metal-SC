@@ -126,7 +126,7 @@ public class Pedido {
         if (this.status != PedidoStatus.PAGAMENTO_INFORMADO_CLIENTE) {
             throw new IllegalStateException("Pagamento so pode ser confirmado depois do cliente informar pagamento");
         }
-        this.status = PedidoStatus.PAGAMENTO_CONFIRMADO;
+        this.status = PedidoStatus.EM_SEPARACAO;
         this.statusPagamento = PagamentoStatus.PAGAMENTO_CONFIRMADO;
     }
 

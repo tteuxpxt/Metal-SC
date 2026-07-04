@@ -28,7 +28,7 @@ public interface PedidoRepository extends JpaRepository<Pedido, String> {
     @Query("SELECT p FROM Pedido p WHERE p.status = 'PENDENTE' OR p.status = 'AGUARDANDO_NEGOCIACAO'")
     List<Pedido> findPedidosPendentes();
 
-    @Query("SELECT p FROM Pedido p WHERE p.status = 'PAGAMENTO_CONFIRMADO' OR p.status = 'CONFIRMADO'")
+    @Query("SELECT p FROM Pedido p WHERE p.status IN ('PAGAMENTO_CONFIRMADO', 'CONFIRMADO', 'EM_SEPARACAO', 'EM_PREPARACAO', 'ENVIADO', 'ENTREGUE', 'CONCLUIDO')")
     List<Pedido> findPedidosConfirmados();
 
     @Query("SELECT p FROM Pedido p WHERE p.status = 'CANCELADO'")
@@ -38,10 +38,10 @@ public interface PedidoRepository extends JpaRepository<Pedido, String> {
     long countByClienteId(String clienteId);
     long countByVendedorId(String vendedorId);
 
-    @Query("SELECT SUM(p.valorTotal) FROM Pedido p WHERE p.vendedor.id = :vendedorId AND (p.status = 'PAGAMENTO_CONFIRMADO' OR p.status = 'CONFIRMADO')")
+    @Query("SELECT SUM(p.valorTotal) FROM Pedido p WHERE p.vendedor.id = :vendedorId AND p.status IN ('PAGAMENTO_CONFIRMADO', 'CONFIRMADO', 'EM_SEPARACAO', 'EM_PREPARACAO', 'ENVIADO', 'ENTREGUE', 'CONCLUIDO')")
     Double somarVendasPorRevendedor(@Param("vendedorId") String vendedorId);
 
-    @Query("SELECT SUM(p.valorTotal) FROM Pedido p WHERE p.cliente.id = :clienteId AND (p.status = 'PAGAMENTO_CONFIRMADO' OR p.status = 'CONFIRMADO')")
+    @Query("SELECT SUM(p.valorTotal) FROM Pedido p WHERE p.cliente.id = :clienteId AND p.status IN ('PAGAMENTO_CONFIRMADO', 'CONFIRMADO', 'EM_SEPARACAO', 'EM_PREPARACAO', 'ENVIADO', 'ENTREGUE', 'CONCLUIDO')")
     Double somarComprasPorCliente(@Param("clienteId") String clienteId);
 
     @Query("SELECT p FROM Pedido p WHERE p.enderecoEntrega.cidade = :cidade")
@@ -50,7 +50,7 @@ public interface PedidoRepository extends JpaRepository<Pedido, String> {
     @Query("SELECT p FROM Pedido p WHERE p.enderecoEntrega.estado = :estado")
     List<Pedido> findByEnderecoEntregaEstado(@Param("estado") String estado);
 
-    @Query("SELECT AVG(p.valorTotal) FROM Pedido p WHERE p.status = 'PAGAMENTO_CONFIRMADO' OR p.status = 'CONFIRMADO'")
+    @Query("SELECT AVG(p.valorTotal) FROM Pedido p WHERE p.status IN ('PAGAMENTO_CONFIRMADO', 'CONFIRMADO', 'EM_SEPARACAO', 'EM_PREPARACAO', 'ENVIADO', 'ENTREGUE', 'CONCLUIDO')")
     Double calcularValorMedioPedidos();
 
     void deleteByClienteId(String clienteId);

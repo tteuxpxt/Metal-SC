@@ -2,6 +2,7 @@ package com.metalSpring.controller;
 
 import com.metalSpring.model.dto.NegociacaoConversaDTO;
 import com.metalSpring.model.dto.NegociacaoCriarDTO;
+import com.metalSpring.model.dto.NegociacaoDenunciaDTO;
 import com.metalSpring.model.dto.NegociacaoEnviarMensagemDTO;
 import com.metalSpring.model.dto.NotificacaoDTO;
 import com.metalSpring.model.enums.NegociacaoStatus;
@@ -128,5 +129,26 @@ public class NegociacaoController {
     public ResponseEntity<Void> marcarComoLidas(@PathVariable String id, @RequestParam String usuarioId) {
         negociacaoService.marcarComoLidas(id, usuarioId);
         return ResponseEntity.noContent().build();
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<?> excluir(@PathVariable String id, @RequestParam String usuarioId) {
+        try {
+            negociacaoService.excluirParaUsuario(id, usuarioId);
+            return ResponseEntity.noContent().build();
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/{id}/denunciar")
+    public ResponseEntity<?> denunciar(@PathVariable String id, @RequestBody NegociacaoDenunciaDTO dto) {
+        try {
+            return ResponseEntity.status(HttpStatus.CREATED).body(
+                    negociacaoService.denunciarConversa(id, dto.getUsuarioId(), dto.getMotivo())
+            );
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
     }
 }

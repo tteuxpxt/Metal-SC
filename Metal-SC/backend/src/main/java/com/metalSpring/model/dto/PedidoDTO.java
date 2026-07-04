@@ -19,6 +19,8 @@ public class PedidoDTO {
     private Boolean aprovacaoCliente;
     private Boolean aprovacaoRevendedor;
     private String conversaId;
+    private Boolean chatOcultoParaCliente;
+    private Boolean chatOcultoParaRevendedor;
     private LocalDateTime dataCriacao;
     private LocalDateTime dataAprovacaoCliente;
     private LocalDateTime dataAprovacaoRevendedor;
@@ -79,6 +81,12 @@ public class PedidoDTO {
 
     public String getConversaId() { return conversaId; }
     public void setConversaId(String conversaId) { this.conversaId = conversaId; }
+
+    public Boolean getChatOcultoParaCliente() { return chatOcultoParaCliente; }
+    public void setChatOcultoParaCliente(Boolean chatOcultoParaCliente) { this.chatOcultoParaCliente = chatOcultoParaCliente; }
+
+    public Boolean getChatOcultoParaRevendedor() { return chatOcultoParaRevendedor; }
+    public void setChatOcultoParaRevendedor(Boolean chatOcultoParaRevendedor) { this.chatOcultoParaRevendedor = chatOcultoParaRevendedor; }
 
     public LocalDateTime getDataCriacao() { return dataCriacao; }
     public void setDataCriacao(LocalDateTime dataCriacao) { this.dataCriacao = dataCriacao; }

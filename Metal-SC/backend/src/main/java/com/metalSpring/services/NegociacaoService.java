@@ -169,12 +169,14 @@ public class NegociacaoService {
 
     public List<NegociacaoConversaDTO> listarPorCliente(String clienteId) {
         return conversaRepository.findByClienteIdOrderByAtualizadaEmDesc(clienteId).stream()
+                .filter(conversa -> !Boolean.TRUE.equals(conversa.getOcultaParaCliente()))
                 .map(conversa -> toConversaDTO(conversa, clienteId))
                 .toList();
     }
 
     public List<NegociacaoConversaDTO> listarPorRevendedor(String revendedorId) {
         return conversaRepository.findByRevendedorIdOrderByAtualizadaEmDesc(revendedorId).stream()
+                .filter(conversa -> !Boolean.TRUE.equals(conversa.getOcultaParaRevendedor()))
                 .map(conversa -> toConversaDTO(conversa, revendedorId))
                 .toList();
     }
@@ -354,6 +356,72 @@ public class NegociacaoService {
                 TipoMensagemNegociacao.SISTEMA
         ));
         return toConversaDTO(conversa, usuarioId);
+    }
+
+    @Transactional
+    public void excluirParaUsuario(String conversaId, String usuarioId) {
+        ConversaNegociacao conversa = buscarConversa(conversaId);
+        boolean ehCliente = conversa.getCliente().getId().equals(usuarioId);
+        boolean ehRevendedor = conversa.getRevendedor().getId().equals(usuarioId);
+        if (!ehCliente && !ehRevendedor) {
+            throw new RuntimeException("Usuario nao participa desta negociacao");
+        }
+
+        if (ehCliente) {
+            conversa.setOcultaParaCliente(true);
+        } else {
+            conversa.setOcultaParaRevendedor(true);
+        }
+
+        boolean ambosApagaram =
+                Boolean.TRUE.equals(conversa.getOcultaParaCliente())
+                        && Boolean.TRUE.equals(conversa.getOcultaParaRevendedor());
+
+        if (ambosApagaram) {
+            // Nenhuma das partes quer mais ver esta conversa: apaga de verdade
+            // (as mensagens somem em cascata). Denuncias existentes ficam
+            // preservadas com o motivo/registro já salvos, apenas desvinculadas
+            // da conversa/mensagens que serão removidas.
+            java.util.LinkedHashSet<AlertaModeracao> alertas = new java.util.LinkedHashSet<>();
+            alertas.addAll(alertaRepository.findByConversaId(conversaId));
+            alertas.addAll(alertaRepository.findByMensagem_ConversaId(conversaId));
+            alertas.forEach(alerta -> {
+                alerta.setConversa(null);
+                alerta.setMensagem(null);
+            });
+            alertaRepository.saveAll(alertas);
+            conversaRepository.delete(conversa);
+        } else {
+            conversaRepository.save(conversa);
+        }
+    }
+
+    @Transactional
+    public AlertaModeracaoDTO denunciarConversa(String conversaId, String usuarioId, String motivo) {
+        ConversaNegociacao conversa = buscarConversa(conversaId);
+        Usuario usuario = usuarioRepository.findById(usuarioId)
+                .orElseThrow(() -> new RuntimeException("Usuario nao encontrado"));
+        boolean ehCliente = conversa.getCliente().getId().equals(usuarioId);
+        boolean ehRevendedor = conversa.getRevendedor().getId().equals(usuarioId);
+        if (!ehCliente && !ehRevendedor) {
+            throw new RuntimeException("Usuario nao participa desta negociacao");
+        }
+
+        AlertaModeracao alerta = new AlertaModeracao();
+        alerta.setConversa(conversa);
+        alerta.setUsuario(usuario);
+        alerta.setUsuarioNome(usuario.getNome());
+        alerta.setUsuarioTipo(usuario.getTipo());
+        alerta.setMensagemEnviada(
+                (motivo != null && !motivo.isBlank())
+                        ? motivo.trim()
+                        : "Usuario denunciou esta conversa sem detalhar o motivo."
+        );
+        alerta.setPalavraDetectada("Denuncia manual");
+        alerta.setTipoInfracao("Denuncia do " + (ehCliente ? "cliente" : "revendedor"));
+        alerta.setNivelRisco(NivelRiscoModeracao.ALTO);
+        alerta.setDenunciaManual(true);
+        return toAlertaDTO(alertaRepository.save(alerta));
     }
 
     @Transactional
@@ -585,7 +653,10 @@ public class NegociacaoService {
         if (alerta.getMensagem() != null) {
             dto.setConversaId(alerta.getMensagem().getConversa().getId());
             dto.setMensagemId(alerta.getMensagem().getId());
+        } else if (alerta.getConversa() != null) {
+            dto.setConversaId(alerta.getConversa().getId());
         }
+        dto.setDenunciaManual(Boolean.TRUE.equals(alerta.getDenunciaManual()));
         if (alerta.getPeca() != null) {
             dto.setPecaId(alerta.getPeca().getId());
         }
